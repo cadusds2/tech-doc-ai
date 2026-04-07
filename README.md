@@ -137,3 +137,33 @@ As variáveis abaixo devem estar presentes em `.env` (ou no ambiente de execuç�
 - `TAMANHO_LOTE_INDEXACAO`: quantidade máxima de chunks processados por rotina.
 - `TAMANHO_TRECHO`: tamanho de chunk na ingestão.
 - `SOBREPOSICAO_TRECHO`: sobreposição entre chunks.
+
+
+## Contrato da API de consulta
+
+A rota `POST /chat/perguntar` retorna sempre um objeto com dois campos principais:
+
+- `resposta`: texto gerado a partir do contexto recuperado.
+- `fontes`: lista de chunks usados na resposta (com metadados e pontuação de similaridade).
+
+Esse contrato evita acoplamento no cliente e deixa explícito o que foi usado como base para a geração.
+
+## Fluxo detalhado da consulta RAG
+
+Fluxo ponta a ponta implementado nesta versão:
+
+`pergunta -> embedding -> busca vetorial -> contexto -> resposta -> fontes`
+
+1. **Pergunta**
+   - O usuário envia `pergunta` e `limite_fontes` para `POST /chat/perguntar`.
+2. **Embedding**
+   - `ServicoRecuperacaoSemantica` gera o embedding da pergunta via `ServicoEmbeddings`.
+3. **Busca vetorial**
+   - `RepositorioDocumentos.buscar_trechos_similares` consulta os chunks com embedding e ordena por distância de cosseno.
+4. **Contexto**
+   - `ServicoConsultaRAG` monta um bloco textual com os trechos mais relevantes, mantendo metadados de origem.
+5. **Resposta**
+   - `GeradorRespostaContextual` envia pergunta + contexto para um provedor de geração textual e adiciona aviso de limitação (sem prometer precisão absoluta).
+6. **Fontes**
+   - A API devolve a resposta junto da lista de fontes utilizadas para rastreabilidade.
+

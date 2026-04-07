@@ -1,5 +1,6 @@
 from app.services.consulta_rag import (
     GeradorRespostaContextual,
+    MensagemModelo,
     ServicoConsultaRAG,
     ServicoRecuperacaoSemantica,
     TrechoRecuperado,
@@ -19,6 +20,15 @@ class _RepositorioBuscaFalso:
 class _ServicoEmbeddingsFalso:
     def gerar_embeddings(self, textos):
         return [[0.1, 0.2, 0.3] for _ in textos]
+
+
+class _ProvedorModeloFalso:
+    def __init__(self):
+        self.mensagens_recebidas: list[MensagemModelo] = []
+
+    def gerar_texto(self, mensagens):
+        self.mensagens_recebidas = mensagens
+        return "Resposta sintética baseada no contexto recuperado."
 
 
 def test_recuperacao_semantica_deve_gerar_embedding_e_consultar_repositorio():
@@ -54,17 +64,20 @@ def test_consulta_rag_deve_retornar_resposta_com_fontes():
         repositorio=_RepositorioBuscaFalso(resultados=resultados),
         servico_embeddings=_ServicoEmbeddingsFalso(),
     )
+    provedor_modelo = _ProvedorModeloFalso()
     servico = ServicoConsultaRAG(
         servico_recuperacao=recuperacao,
-        gerador_resposta=GeradorRespostaContextual(),
+        gerador_resposta=GeradorRespostaContextual(provedor_modelo_linguagem=provedor_modelo),
     )
 
     resposta = servico.responder_pergunta(pergunta="Explique RAG", limite_fontes=2)
 
-    assert "não garante precisão absoluta" in resposta.resposta
+    assert "sem garantia de precisão absoluta" in resposta.resposta
     assert len(resposta.fontes) == 2
     assert resposta.fontes[0].nome_arquivo == "manual.md"
     assert resposta.fontes[0].pontuacao_similaridade == 0.91
+    assert provedor_modelo.mensagens_recebidas[1].papel == "usuario"
+    assert "Contexto recuperado" in provedor_modelo.mensagens_recebidas[1].conteudo
 
 
 def test_gerador_deve_sinalizar_falta_de_contexto():
