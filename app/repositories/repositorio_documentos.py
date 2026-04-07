@@ -53,3 +53,29 @@ class RepositorioDocumentos:
             self.sessao.refresh(trecho)
 
         return trechos_orm
+
+    def listar_trechos_sem_embedding(self, limite: int = 100, documento_id: int | None = None) -> list[TrechoORM]:
+        consulta = self.sessao.query(TrechoORM).filter(TrechoORM.embedding.is_(None)).order_by(TrechoORM.id.asc())
+        if documento_id is not None:
+            consulta = consulta.filter(TrechoORM.documento_id == documento_id)
+        return consulta.limit(limite).all()
+
+    def atualizar_embeddings_trechos(self, embeddings_por_trecho_id: dict[int, list[float]]) -> None:
+        if not embeddings_por_trecho_id:
+            return
+
+        ids_trechos = list(embeddings_por_trecho_id.keys())
+        trechos = self.sessao.query(TrechoORM).filter(TrechoORM.id.in_(ids_trechos)).all()
+        for trecho in trechos:
+            trecho.embedding = embeddings_por_trecho_id[trecho.id]
+
+        self.sessao.commit()
+
+    def limpar_embeddings_documento(self, documento_id: int) -> int:
+        total_atualizado = (
+            self.sessao.query(TrechoORM)
+            .filter(TrechoORM.documento_id == documento_id)
+            .update({TrechoORM.embedding: None}, synchronize_session=False)
+        )
+        self.sessao.commit()
+        return total_atualizado

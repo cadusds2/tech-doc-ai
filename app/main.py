@@ -4,11 +4,13 @@ from app.api.router import roteador_api
 from app.core.config import obter_configuracoes
 from app.core.excecoes import registrar_tratadores_excecao
 from app.core.logging import configurar_logging
+from app.infra.banco import inicializar_banco
 
 
 def criar_aplicacao() -> FastAPI:
     configuracoes = obter_configuracoes()
     configurar_logging(configuracoes)
+    inicializar_banco()
 
     app = FastAPI(
         title=configuracoes.nome_app,

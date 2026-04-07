@@ -22,6 +22,7 @@ tests/
 
 - Python 3.11+
 - `pip`
+- PostgreSQL com extensão `pgvector` (ex.: imagem `pgvector/pgvector:pg16`)
 
 ## Como executar localmente
 
@@ -46,7 +47,7 @@ uvicorn app.main:app --reload
 
 A API ficará disponível em `http://127.0.0.1:8000`.
 
-## Endpoint disponível
+## Endpoints disponíveis
 
 ### `GET /health`
 
@@ -60,15 +61,32 @@ Exemplo de resposta:
 }
 ```
 
+### `POST /documentos/ingestao`
+
+Ingere arquivo textual (`.txt`, `.md`, `.pdf`), gera chunks e executa indexação vetorial dos trechos ainda sem embedding.
+
 ## Testes
 
 ```bash
 pytest
 ```
 
-## Escopo desta etapa
+## Embeddings e indexação vetorial
 
-- Scaffold do projeto criado.
-- FastAPI configurado com endpoint de saúde.
-- Preparação para PostgreSQL e pgvector apenas na configuração.
-- Sem implementação de ingestão de documentos e sem embeddings nesta etapa.
+- A aplicação persiste chunks em PostgreSQL e usa `pgvector` para armazenar embeddings na coluna `trechos.embedding`.
+- A geração de embeddings fica isolada em `app/services/embeddings.py`.
+- O fluxo de indexação vetorial fica isolado em `app/services/indexacao_vetorial.py`.
+- A rotina `indexar_trechos_pendentes` processa apenas chunks sem embedding.
+- A rotina `preparar_reindexacao_documento` limpa embeddings de um documento e deixa a estrutura pronta para futura reindexação completa.
+
+## Variáveis de ambiente
+
+As variáveis abaixo devem estar presentes em `.env` (ou no ambiente de execução):
+
+- `URL_BANCO`: URL de conexão com PostgreSQL.
+- `HABILITAR_PGVECTOR`: habilita criação da extensão `vector` na inicialização.
+- `MODELO_EMBEDDINGS`: nome do modelo de embeddings (quando `sentence-transformers` estiver instalado).
+- `DIMENSAO_EMBEDDINGS`: dimensão dos vetores armazenados no `pgvector`.
+- `TAMANHO_LOTE_INDEXACAO`: quantidade máxima de chunks processados por rotina.
+- `TAMANHO_TRECHO`: tamanho de chunk na ingestão.
+- `SOBREPOSICAO_TRECHO`: sobreposição entre chunks.
