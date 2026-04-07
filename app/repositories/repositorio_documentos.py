@@ -1,5 +1,16 @@
+from dataclasses import dataclass
+
 from app.infra.modelos_orm import DocumentoORM, TrechoORM
 from app.services.chunking import TrechoGerado
+
+
+@dataclass(frozen=True)
+class TrechoSimilarEncontrado:
+    trecho_id: int
+    documento_id: int
+    nome_arquivo: str
+    conteudo: str
+    pontuacao_similaridade: float
 
 
 class RepositorioDocumentos:
@@ -79,3 +90,30 @@ class RepositorioDocumentos:
         )
         self.sessao.commit()
         return total_atualizado
+
+    def buscar_trechos_similares(self, embedding_pergunta: list[float], limite: int) -> list[TrechoSimilarEncontrado]:
+        distancia_cosseno = TrechoORM.embedding.cosine_distance(embedding_pergunta)
+        consulta = (
+            self.sessao.query(
+                TrechoORM.id.label("trecho_id"),
+                TrechoORM.documento_id.label("documento_id"),
+                DocumentoORM.nome_arquivo.label("nome_arquivo"),
+                TrechoORM.conteudo.label("conteudo"),
+                (1 - distancia_cosseno).label("pontuacao_similaridade"),
+            )
+            .join(DocumentoORM, DocumentoORM.id == TrechoORM.documento_id)
+            .filter(TrechoORM.embedding.is_not(None))
+            .order_by(distancia_cosseno.asc())
+            .limit(limite)
+        )
+
+        return [
+            TrechoSimilarEncontrado(
+                trecho_id=registro.trecho_id,
+                documento_id=registro.documento_id,
+                nome_arquivo=registro.nome_arquivo,
+                conteudo=registro.conteudo,
+                pontuacao_similaridade=float(registro.pontuacao_similaridade),
+            )
+            for registro in consulta.all()
+        ]

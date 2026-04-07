@@ -65,6 +65,53 @@ Exemplo de resposta:
 
 Ingere arquivo textual (`.txt`, `.md`, `.pdf`), gera chunks e executa indexação vetorial dos trechos ainda sem embedding.
 
+### `POST /chat/perguntar`
+
+Recebe uma pergunta, busca os trechos mais relevantes semanticamente e retorna uma resposta contextualizada junto das fontes usadas.
+
+Exemplo de requisição:
+
+```json
+{
+  "pergunta": "Qual é o objetivo do projeto?",
+  "limite_fontes": 4
+}
+```
+
+Exemplo de resposta:
+
+```json
+{
+  "resposta": "Resposta baseada nos trechos recuperados (...)",
+  "fontes": [
+    {
+      "trecho_id": 12,
+      "documento_id": 3,
+      "nome_arquivo": "arquitetura.md",
+      "conteudo": "...",
+      "pontuacao_similaridade": 0.8731
+    }
+  ]
+}
+```
+
+## Fluxo ponta a ponta do RAG (consulta)
+
+A primeira versão funcional da consulta segue este fluxo:
+
+1. **Pergunta**: a API recebe a pergunta no endpoint `POST /chat/perguntar`.
+2. **Embedding**: o serviço de embeddings gera o vetor da pergunta.
+3. **Busca vetorial**: o repositório consulta os chunks indexados no `pgvector`, ordenando por distância de cosseno.
+4. **Contexto**: os trechos mais relevantes são organizados em um bloco de contexto com metadados de fonte.
+5. **Resposta**: o gerador de resposta produz uma síntese baseada no contexto recuperado, sem prometer precisão absoluta.
+6. **Fontes**: a API retorna a lista de fontes utilizadas (chunk, documento, conteúdo e pontuação de similaridade).
+
+## Separação entre recuperação e geração
+
+- **Recuperação (retrieval)**: `ServicoRecuperacaoSemantica` (embedding da pergunta + busca vetorial dos chunks).
+- **Geração (generation)**: `GeradorRespostaContextual` (produção da resposta textual a partir do contexto).
+- **Orquestração**: `ServicoConsultaRAG` (coordena as duas etapas e monta a resposta final da API).
+
 ## Testes
 
 ```bash
