@@ -7,6 +7,7 @@ from app.configuracao import obter_configuracao
 from app.infra.banco import obter_sessao
 from app.repositories.repositorio_documentos import RepositorioDocumentos
 from app.services.chunking import EstrategiaChunkingTamanhoComSobreposicao, ServicoChunkingDocumentos
+from app.services.consulta_rag import GeradorRespostaContextual, ServicoConsultaRAG, ServicoRecuperacaoSemantica
 from app.services.embeddings import ServicoEmbeddings, criar_provedor_embeddings
 from app.services.ingestao_documentos import ServicoIngestaoDocumentos
 from app.services.indexacao_vetorial import ServicoIndexacaoVetorial
@@ -38,6 +39,11 @@ def obter_servico_embeddings() -> ServicoEmbeddings:
     return ServicoEmbeddings(provedor=provedor)
 
 
+@lru_cache
+def obter_gerador_resposta_contextual() -> GeradorRespostaContextual:
+    return GeradorRespostaContextual()
+
+
 def obter_servico_indexacao_vetorial(sessao: Session = Depends(obter_sessao)) -> ServicoIndexacaoVetorial:
     configuracao = obter_configuracao()
     return ServicoIndexacaoVetorial(
@@ -61,4 +67,15 @@ def obter_servico_ingestao_documentos(sessao: Session = Depends(obter_sessao)) -
         parser=obter_servico_parser_documentos(),
         servico_chunking=obter_servico_chunking_documentos(),
         servico_indexacao=servico_indexacao,
+    )
+
+
+def obter_servico_consulta_rag(sessao: Session = Depends(obter_sessao)) -> ServicoConsultaRAG:
+    servico_recuperacao = ServicoRecuperacaoSemantica(
+        repositorio=RepositorioDocumentos(sessao),
+        servico_embeddings=obter_servico_embeddings(),
+    )
+    return ServicoConsultaRAG(
+        servico_recuperacao=servico_recuperacao,
+        gerador_resposta=obter_gerador_resposta_contextual(),
     )
