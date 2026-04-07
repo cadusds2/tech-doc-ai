@@ -5,23 +5,19 @@ from sqlalchemy.orm import Session
 
 from app.configuracao import obter_configuracao
 from app.infra.banco import obter_sessao
-from app.repositorios.repositorio_documentos import RepositorioDocumentos
-from app.servicos.embeddings import ServicoEmbeddings
-from app.servicos.parser_documentos import ParserDocumentos
-from app.servicos.rag import ServicoRAG
+from app.repositories.repositorio_documentos import RepositorioDocumentos
+from app.services.ingestao_documentos import ServicoIngestaoDocumentos
+from app.services.parser_documentos import ServicoParserDocumentos
 
 
 @lru_cache
-def obter_servico_embeddings() -> ServicoEmbeddings:
-    config = obter_configuracao()
-    return ServicoEmbeddings(config.modelo_embeddings, config.dimensao_embeddings)
+def obter_servico_parser_documentos() -> ServicoParserDocumentos:
+    return ServicoParserDocumentos()
 
 
-def obter_servico_rag(sessao: Session = Depends(obter_sessao)) -> ServicoRAG:
-    config = obter_configuracao()
-    return ServicoRAG(
-        config=config,
+def obter_servico_ingestao_documentos(sessao: Session = Depends(obter_sessao)) -> ServicoIngestaoDocumentos:
+    _ = obter_configuracao()
+    return ServicoIngestaoDocumentos(
         repositorio=RepositorioDocumentos(sessao),
-        parser=ParserDocumentos(),
-        servico_embeddings=obter_servico_embeddings(),
+        parser=obter_servico_parser_documentos(),
     )
