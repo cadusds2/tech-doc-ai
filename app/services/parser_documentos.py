@@ -1,7 +1,10 @@
 from io import BytesIO
 from pathlib import Path
 
-from pypdf import PdfReader
+try:
+    from pypdf import PdfReader
+except ModuleNotFoundError:  # pragma: no cover - dependência opcional em ambiente de testes
+    PdfReader = None
 
 
 class ErroTipoArquivoInvalido(ValueError):
@@ -25,6 +28,9 @@ class ServicoParserDocumentos:
 
         if extensao in {".txt", ".md"}:
             return conteudo_bytes.decode("utf-8", errors="ignore").strip()
+
+        if PdfReader is None:
+            raise ErroLeituraDocumento("Leitura de PDF indisponível neste ambiente. Instale a dependência 'pypdf'.")
 
         try:
             leitor = PdfReader(BytesIO(conteudo_bytes))
