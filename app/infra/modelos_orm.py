@@ -19,6 +19,9 @@ class DocumentoORM(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nome_arquivo: Mapped[str] = mapped_column(String(255), nullable=False)
     tipo_arquivo: Mapped[str] = mapped_column(String(20), nullable=False)
+    tamanho_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    quantidade_caracteres: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    conteudo_extraido: Mapped[str] = mapped_column(Text, nullable=False, default="")
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     trechos: Mapped[list["TrechoORM"]] = relationship(back_populates="documento", cascade="all, delete-orphan")
