@@ -1,0 +1,27 @@
+services:
+  banco:
+    image: pgvector/pgvector:pg16
+    container_name: tech-doc-ai-banco
+    environment:
+      POSTGRES_DB: tech_doc_ai
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - dados_postgres:/var/lib/postgresql/data
+
+  api:
+    build: .
+    container_name: tech-doc-ai-api
+    depends_on:
+      - banco
+    environment:
+      URL_BANCO: postgresql+psycopg://postgres:postgres@banco:5432/tech_doc_ai
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+
+volumes:
+  dados_postgres:
