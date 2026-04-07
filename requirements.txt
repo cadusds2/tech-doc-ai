@@ -6,6 +6,8 @@ pydantic-settings==2.6.1
 sqlalchemy==2.0.36
 psycopg[binary]==3.2.3
 pgvector==0.3.6
+pypdf==5.1.0
+python-multipart==0.0.19
 
 # Testes
 pytest==8.3.3
