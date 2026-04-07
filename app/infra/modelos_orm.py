@@ -33,8 +33,12 @@ class TrechoORM(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     documento_id: Mapped[int] = mapped_column(ForeignKey("documentos.id", ondelete="CASCADE"), index=True)
     indice_trecho: Mapped[int] = mapped_column(Integer, nullable=False)
+    indice_inicio: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    indice_fim: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tamanho_caracteres: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    total_trechos_documento: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     conteudo: Mapped[str] = mapped_column(Text, nullable=False)
     pontuacao_similaridade: Mapped[float | None] = mapped_column(Float, nullable=True)
-    embedding: Mapped[list[float]] = mapped_column(Vector(config.dimensao_embeddings), nullable=False)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(config.dimensao_embeddings), nullable=True)
 
     documento: Mapped[DocumentoORM] = relationship(back_populates="trechos")
