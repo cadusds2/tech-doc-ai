@@ -3,6 +3,7 @@ from pathlib import Path
 from app.domain.documento import DocumentoIngerido
 from app.repositories.repositorio_documentos import RepositorioDocumentos
 from app.services.chunking import ServicoChunkingDocumentos
+from app.services.indexacao_vetorial import ServicoIndexacaoVetorial
 from app.services.parser_documentos import ErroLeituraDocumento, ServicoParserDocumentos
 
 
@@ -12,10 +13,12 @@ class ServicoIngestaoDocumentos:
         repositorio: RepositorioDocumentos,
         parser: ServicoParserDocumentos,
         servico_chunking: ServicoChunkingDocumentos,
+        servico_indexacao: ServicoIndexacaoVetorial | None = None,
     ):
         self._repositorio = repositorio
         self._parser = parser
         self._servico_chunking = servico_chunking
+        self._servico_indexacao = servico_indexacao
 
     def ingerir_arquivo(self, nome_arquivo: str, conteudo_bytes: bytes) -> DocumentoIngerido:
         texto_extraido = self._parser.extrair_texto(nome_arquivo, conteudo_bytes)
@@ -33,6 +36,8 @@ class ServicoIngestaoDocumentos:
 
         trechos = self._servico_chunking.chunkar_texto(texto_extraido)
         self._repositorio.salvar_trechos_documento(documento_id=documento.id, trechos=trechos)
+        if self._servico_indexacao is not None:
+            self._servico_indexacao.indexar_trechos_pendentes(documento_id=documento.id)
 
         return DocumentoIngerido(
             id=documento.id,

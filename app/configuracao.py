@@ -14,6 +14,8 @@ class Configuracao(BaseSettings):
 
     modelo_embeddings: str = "sentence-transformers/all-MiniLM-L6-v2"
     dimensao_embeddings: int = 384
+    habilitar_pgvector: bool = True
+    tamanho_lote_indexacao: int = 100
     tamanho_trecho: int = 800
     sobreposicao_trecho: int = 120
     limite_busca_padrao: int = 4
