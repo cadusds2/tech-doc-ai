@@ -15,7 +15,7 @@ class Configuracoes(BaseSettings):
     nivel_log: str = "INFO"
     formato_log: str = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
 
-    url_banco: str = "postgresql+psycopg://postgres:postgres@localhost:5432/techdocai"
+    url_banco: str = "postgresql+psycopg://postgres:postgres@localhost:5432/tech_doc_ai"
     habilitar_pgvector: bool = True
 
     modelo_embeddings: str = "sentence-transformers/all-MiniLM-L6-v2"
