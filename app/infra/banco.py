@@ -5,10 +5,10 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.configuracao import obter_configuracao
+from app.core.config import obter_configuracoes
 from app.infra.modelos_orm import Base
 
-config = obter_configuracao()
+config = obter_configuracoes()
 engine = create_engine(config.url_banco, future=True)
 FabricaSessao = sessionmaker(bind=engine, autocommit=False, autoflush=False, class_=Session)
 logger = logging.getLogger(__name__)
