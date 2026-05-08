@@ -3,7 +3,7 @@ from functools import lru_cache
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
-from app.configuracao import obter_configuracao
+from app.core.config import obter_configuracoes
 from app.infra.banco import obter_sessao
 from app.repositories.repositorio_documentos import RepositorioDocumentos
 from app.services.chunking import EstrategiaChunkingTamanhoComSobreposicao, ServicoChunkingDocumentos
@@ -21,7 +21,7 @@ def obter_servico_parser_documentos() -> ServicoParserDocumentos:
 
 @lru_cache
 def obter_servico_chunking_documentos() -> ServicoChunkingDocumentos:
-    configuracao = obter_configuracao()
+    configuracao = obter_configuracoes()
     estrategia = EstrategiaChunkingTamanhoComSobreposicao(
         tamanho_trecho=configuracao.tamanho_trecho,
         sobreposicao=configuracao.sobreposicao_trecho,
@@ -31,7 +31,7 @@ def obter_servico_chunking_documentos() -> ServicoChunkingDocumentos:
 
 @lru_cache
 def obter_servico_embeddings() -> ServicoEmbeddings:
-    configuracao = obter_configuracao()
+    configuracao = obter_configuracoes()
     provedor = criar_provedor_embeddings(
         nome_modelo=configuracao.modelo_embeddings,
         dimensao=configuracao.dimensao_embeddings,
@@ -45,7 +45,7 @@ def obter_gerador_resposta_contextual() -> GeradorRespostaContextual:
 
 
 def obter_servico_indexacao_vetorial(sessao: Session = Depends(obter_sessao)) -> ServicoIndexacaoVetorial:
-    configuracao = obter_configuracao()
+    configuracao = obter_configuracoes()
     return ServicoIndexacaoVetorial(
         repositorio=RepositorioDocumentos(sessao),
         servico_embeddings=obter_servico_embeddings(),
@@ -54,7 +54,7 @@ def obter_servico_indexacao_vetorial(sessao: Session = Depends(obter_sessao)) ->
 
 
 def obter_servico_ingestao_documentos(sessao: Session = Depends(obter_sessao)) -> ServicoIngestaoDocumentos:
-    configuracao = obter_configuracao()
+    configuracao = obter_configuracoes()
     servico_indexacao: ServicoIndexacaoVetorial | None = None
     if configuracao.habilitar_pgvector:
         servico_indexacao = ServicoIndexacaoVetorial(

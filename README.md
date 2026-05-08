@@ -1,22 +1,44 @@
 # Tech Doc AI
 
-Scaffold inicial para um projeto RAG de documentação técnica com FastAPI.
+API RAG para documentação técnica com FastAPI, ingestão de arquivos, geração de trechos, embeddings e consulta semântica com fontes rastreáveis.
 
-## Estrutura de pastas
+## Estrutura oficial do projeto
+
+A estrutura principal do projeto fica padronizada em módulos em inglês dentro de `app/`:
 
 ```text
 app/
   api/
-    routes/
-    schemas/
-  core/
-  services/
-  repositories/
-  domain/
+    routes/      # endpoints HTTP
+    schemas/     # contratos de entrada e saída da API
+  services/      # regras de negócio e orquestração de casos de uso
+  repositories/  # persistência e consultas ao banco
+  domain/        # modelos de domínio independentes de transporte e infraestrutura
+  infra/         # banco, ORM e integrações de infraestrutura
+  core/          # configuração, logging e tratamento transversal de exceções
+  dependencias.py
   main.py
+
 docs/
 tests/
 ```
+
+Os diretórios legados em português (`app/servicos`, `app/repositorios`, `app/rotas` e `app/dominio`) foram removidos. Novos módulos devem ser criados apenas na estrutura oficial acima.
+
+## Mapa de migração dos módulos legados
+
+| Legado removido | Módulo oficial | Decisão |
+| --- | --- | --- |
+| `app/servicos/chunker.py` | `app/services/chunking.py` | Lógica mantida e expandida com estratégia tipada, índices e validação de parâmetros. |
+| `app/servicos/parser_documentos.py` | `app/services/parser_documentos.py` | Lógica mantida com erros específicos, `strip()` e tratamento de indisponibilidade do leitor de PDF. |
+| `app/servicos/embeddings.py` | `app/services/embeddings.py` | Lógica mantida sem dependência obrigatória de `numpy`, com provedor determinístico e provedor opcional via `sentence-transformers`. |
+| `app/servicos/rag.py` | `app/services/ingestao_documentos.py`, `app/services/indexacao_vetorial.py`, `app/services/consulta_rag.py` | Orquestração monolítica separada em ingestão, indexação, recuperação e geração contextual. |
+| `app/repositorios/repositorio_documentos.py` | `app/repositories/repositorio_documentos.py` | Persistência separada em metadados, trechos, atualização de embeddings e busca semântica. |
+| `app/rotas/healthcheck.py` | `app/api/routes/health.py` | Rota oficial `GET /health` com metadados da aplicação. |
+| `app/rotas/documentos.py` | `app/api/routes/documentos.py` | Rota oficial `POST /documentos/ingestao` integrada ao serviço de ingestão. |
+| `app/rotas/perguntas.py` | `app/api/routes/chat.py` | Rota oficial `POST /chat/perguntar` com contrato orientado a chat e fontes. |
+| `app/dominio/modelos.py` | `app/domain/documento.py` e `app/api/schemas/*` | Entidade de domínio separada dos contratos HTTP. |
+| `app/configuracao.py` | `app/core/config.py` | Configuração centralizada em `core`, incluindo banco, API, embeddings, chunking e indexação. |
 
 ## Pré-requisitos
 
@@ -33,7 +55,7 @@ tests/
 pip install -r requirements.txt
 ```
 
-3. Crie o arquivo de variáveis de ambiente:
+3. Crie o arquivo de variáveis de ambiente, se necessário:
 
 ```bash
 cp .env.example .env
@@ -51,19 +73,23 @@ A API ficará disponível em `http://127.0.0.1:8000`.
 
 ### `GET /health`
 
-Retorna o estado básico da API.
+Retorna o estado básico da API e metadados da aplicação.
 
 Exemplo de resposta:
 
 ```json
 {
-  "status": "ok"
+  "status": "ok",
+  "aplicacao": "Tech Doc AI",
+  "versao": "0.1.0",
+  "ambiente": "desenvolvimento",
+  "horario_utc": "2026-05-08T00:00:00Z"
 }
 ```
 
 ### `POST /documentos/ingestao`
 
-Ingere arquivo textual (`.txt`, `.md`, `.pdf`), gera chunks e executa indexação vetorial dos trechos ainda sem embedding.
+Ingere arquivo textual (`.txt`, `.md`, `.pdf`), extrai texto, gera trechos e executa indexação vetorial dos trechos ainda sem embedding quando `HABILITAR_PGVECTOR=true`.
 
 ### `POST /chat/perguntar`
 
@@ -82,7 +108,7 @@ Exemplo de resposta:
 
 ```json
 {
-  "resposta": "Resposta baseada nos trechos recuperados (...)",
+  "resposta": "Resposta baseada nos trechos recuperados (...) ",
   "fontes": [
     {
       "trecho_id": 12,
@@ -95,75 +121,38 @@ Exemplo de resposta:
 }
 ```
 
-## Fluxo ponta a ponta do RAG (consulta)
+## Fluxo ponta a ponta do RAG
 
-A primeira versão funcional da consulta segue este fluxo:
+1. **Pergunta**: a API recebe `pergunta` e `limite_fontes` no endpoint `POST /chat/perguntar`.
+2. **Embedding**: `ServicoRecuperacaoSemantica` gera o vetor da pergunta por meio de `ServicoEmbeddings`.
+3. **Busca vetorial**: `RepositorioDocumentos.buscar_trechos_similares` consulta os trechos indexados no `pgvector`, ordenando por distância de cosseno.
+4. **Contexto**: `ServicoConsultaRAG` organiza os trechos em um bloco textual com metadados de origem.
+5. **Resposta**: `GeradorRespostaContextual` produz uma síntese baseada no contexto recuperado e explicita limitações.
+6. **Fontes**: a API retorna a lista de fontes utilizadas, com documento, trecho, conteúdo e pontuação.
 
-1. **Pergunta**: a API recebe a pergunta no endpoint `POST /chat/perguntar`.
-2. **Embedding**: o serviço de embeddings gera o vetor da pergunta.
-3. **Busca vetorial**: o repositório consulta os chunks indexados no `pgvector`, ordenando por distância de cosseno.
-4. **Contexto**: os trechos mais relevantes são organizados em um bloco de contexto com metadados de fonte.
-5. **Resposta**: o gerador de resposta produz uma síntese baseada no contexto recuperado, sem prometer precisão absoluta.
-6. **Fontes**: a API retorna a lista de fontes utilizadas (chunk, documento, conteúdo e pontuação de similaridade).
+## Variáveis de ambiente
 
-## Separação entre recuperação e geração
+As variáveis abaixo podem ser definidas em `.env` ou no ambiente de execução:
 
-- **Recuperação (retrieval)**: `ServicoRecuperacaoSemantica` (embedding da pergunta + busca vetorial dos chunks).
-- **Geração (generation)**: `GeradorRespostaContextual` (produção da resposta textual a partir do contexto).
-- **Orquestração**: `ServicoConsultaRAG` (coordena as duas etapas e monta a resposta final da API).
+- `NOME_APP`: nome exibido pela API.
+- `VERSAO_APP`: versão exibida pela API.
+- `AMBIENTE`: ambiente atual.
+- `HOST_API`: host sugerido para execução local.
+- `PORTA_API`: porta sugerida para execução local.
+- `PREFIXO_API`: prefixo opcional para todas as rotas.
+- `NIVEL_LOG`: nível de logging.
+- `FORMATO_LOG`: formato das mensagens de logging.
+- `URL_BANCO`: URL de conexão com PostgreSQL.
+- `HABILITAR_PGVECTOR`: habilita criação da extensão `vector` na inicialização e indexação durante ingestão.
+- `MODELO_EMBEDDINGS`: nome do modelo de embeddings quando `sentence-transformers` estiver instalado.
+- `DIMENSAO_EMBEDDINGS`: dimensão dos vetores armazenados no `pgvector`.
+- `TAMANHO_LOTE_INDEXACAO`: quantidade máxima de trechos processados por rotina.
+- `TAMANHO_TRECHO`: tamanho de trecho na ingestão.
+- `SOBREPOSICAO_TRECHO`: sobreposição entre trechos.
+- `LIMITE_BUSCA_PADRAO`: limite padrão para buscas semânticas.
 
 ## Testes
 
 ```bash
 pytest
 ```
-
-## Embeddings e indexação vetorial
-
-- A aplicação persiste chunks em PostgreSQL e usa `pgvector` para armazenar embeddings na coluna `trechos.embedding`.
-- A geração de embeddings fica isolada em `app/services/embeddings.py`.
-- O fluxo de indexação vetorial fica isolado em `app/services/indexacao_vetorial.py`.
-- A rotina `indexar_trechos_pendentes` processa apenas chunks sem embedding.
-- A rotina `preparar_reindexacao_documento` limpa embeddings de um documento e deixa a estrutura pronta para futura reindexação completa.
-
-## Variáveis de ambiente
-
-As variáveis abaixo devem estar presentes em `.env` (ou no ambiente de execução):
-
-- `URL_BANCO`: URL de conexão com PostgreSQL.
-- `HABILITAR_PGVECTOR`: habilita criação da extensão `vector` na inicialização.
-- `MODELO_EMBEDDINGS`: nome do modelo de embeddings (quando `sentence-transformers` estiver instalado).
-- `DIMENSAO_EMBEDDINGS`: dimensão dos vetores armazenados no `pgvector`.
-- `TAMANHO_LOTE_INDEXACAO`: quantidade máxima de chunks processados por rotina.
-- `TAMANHO_TRECHO`: tamanho de chunk na ingestão.
-- `SOBREPOSICAO_TRECHO`: sobreposição entre chunks.
-
-
-## Contrato da API de consulta
-
-A rota `POST /chat/perguntar` retorna sempre um objeto com dois campos principais:
-
-- `resposta`: texto gerado a partir do contexto recuperado.
-- `fontes`: lista de chunks usados na resposta (com metadados e pontuação de similaridade).
-
-Esse contrato evita acoplamento no cliente e deixa explícito o que foi usado como base para a geração.
-
-## Fluxo detalhado da consulta RAG
-
-Fluxo ponta a ponta implementado nesta versão:
-
-`pergunta -> embedding -> busca vetorial -> contexto -> resposta -> fontes`
-
-1. **Pergunta**
-   - O usuário envia `pergunta` e `limite_fontes` para `POST /chat/perguntar`.
-2. **Embedding**
-   - `ServicoRecuperacaoSemantica` gera o embedding da pergunta via `ServicoEmbeddings`.
-3. **Busca vetorial**
-   - `RepositorioDocumentos.buscar_trechos_similares` consulta os chunks com embedding e ordena por distância de cosseno.
-4. **Contexto**
-   - `ServicoConsultaRAG` monta um bloco textual com os trechos mais relevantes, mantendo metadados de origem.
-5. **Resposta**
-   - `GeradorRespostaContextual` envia pergunta + contexto para um provedor de geração textual e adiciona aviso de limitação (sem prometer precisão absoluta).
-6. **Fontes**
-   - A API devolve a resposta junto da lista de fontes utilizadas para rastreabilidade.
-
