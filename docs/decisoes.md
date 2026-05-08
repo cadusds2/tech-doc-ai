@@ -29,24 +29,34 @@ Todas as configurações ficam em `app/core/config.py`, incluindo metadados da A
 
 A aplicação usa SQLAlchemy e `pgvector` para armazenar embeddings em `trechos.embedding`. A criação da extensão `vector` é controlada por `HABILITAR_PGVECTOR`.
 
-## 6) Estratégia inicial de chunking por tamanho com sobreposição
+## 6) Estratégia estrutural de chunking com limite e sobreposição
 
-Foi adotada uma estratégia simples de chunking por número de caracteres, com sobreposição configurável entre trechos.
+A aplicação passou a usar `EstrategiaChunkingEstrutural` como estratégia padrão de chunking. A estratégia mantém os limites configuráveis por `tamanho_trecho` e `sobreposicao_trecho`, mas prioriza pontos de quebra que preservam a estrutura do documento antes de recorrer a cortes por tamanho.
+
+Para conteúdo com características de Markdown, a ordem de preferência das unidades estruturais é:
+
+- títulos e subtítulos;
+- parágrafos;
+- listas;
+- blocos de código cercados por crases ou tils.
+
+Para textos simples, a estratégia prioriza parágrafos e frases, preservando trechos curtos em uma única unidade sempre que o conteúdo couber no limite configurado. Blocos ou frases maiores que `tamanho_trecho` ainda podem ser divididos por caracteres para garantir o limite máximo do trecho.
+
+A geração continua preenchendo os metadados de `TrechoGerado`, incluindo `indice_trecho`, `indice_inicio`, `indice_fim` e `tamanho_caracteres`. A estratégia antiga, `EstrategiaChunkingTamanhoComSobreposicao`, permanece disponível para casos em que um corte puramente posicional seja suficiente.
 
 ### Limitações conhecidas
 
-- O corte é cego ao contexto semântico e pode quebrar frases, listas e blocos de código.
-- Não há variação por tipo de documento; PDF, Markdown e TXT usam a mesma regra.
+- A detecção de Markdown é heurística e se baseia em títulos, listas e cercas de código.
 - A estratégia considera caracteres, não tokens do modelo de embeddings.
-- A normalização de espaços reduz ruídos, mas pode alterar formatação relevante.
+- A sobreposição pode começar no meio de uma palavra quando for necessário reaproveitar o final do trecho anterior.
+- Blocos de código maiores que o limite máximo ainda precisam ser quebrados por tamanho.
 
 ### Melhorias futuras sugeridas
 
-- Chunking orientado por estrutura, como títulos, seções, parágrafos e blocos de código.
 - Chunking por contagem de tokens para aderência ao modelo de embeddings.
-- Estratégias híbridas com fallback entre estrutura e tamanho.
 - Metadados extras por trecho, como página, seção e caminho hierárquico do documento.
 - Pós-processamento para evitar trechos muito curtos no final.
+- Detecção explícita do tipo de arquivo para reduzir dependência de heurísticas.
 
 ## 7) Separação entre recuperação e geração
 

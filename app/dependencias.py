@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.config import obter_configuracoes
 from app.infra.banco import obter_sessao
 from app.repositories.repositorio_documentos import RepositorioDocumentos
-from app.services.chunking import EstrategiaChunkingTamanhoComSobreposicao, ServicoChunkingDocumentos
+from app.services.chunking import EstrategiaChunkingEstrutural, ServicoChunkingDocumentos
 from app.services.consulta_rag import GeradorRespostaContextual, ServicoConsultaRAG, ServicoRecuperacaoSemantica
 from app.services.embeddings import ServicoEmbeddings, criar_provedor_embeddings
 from app.services.ingestao_documentos import ServicoIngestaoDocumentos
@@ -22,9 +22,9 @@ def obter_servico_parser_documentos() -> ServicoParserDocumentos:
 @lru_cache
 def obter_servico_chunking_documentos() -> ServicoChunkingDocumentos:
     configuracao = obter_configuracoes()
-    estrategia = EstrategiaChunkingTamanhoComSobreposicao(
+    estrategia = EstrategiaChunkingEstrutural(
         tamanho_trecho=configuracao.tamanho_trecho,
-        sobreposicao=configuracao.sobreposicao_trecho,
+        sobreposicao_trecho=configuracao.sobreposicao_trecho,
     )
     return ServicoChunkingDocumentos(estrategia=estrategia)
 

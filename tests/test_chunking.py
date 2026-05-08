@@ -1,6 +1,11 @@
 import pytest
 
-from app.services.chunking import EstrategiaChunkingTamanhoComSobreposicao, ServicoChunkingDocumentos
+from app.services.chunking import (
+    EstrategiaChunkingEstrutural,
+    EstrategiaChunkingTamanhoComSobreposicao,
+    ServicoChunkingDocumentos,
+    TrechoGerado,
+)
 
 
 def test_estrategia_deve_gerar_trechos_com_sobreposicao():
@@ -49,3 +54,69 @@ def test_estrategia_deve_retornar_vazio_para_texto_sem_conteudo():
 def test_estrategia_deve_validar_parametros_invalidos(tamanho_trecho: int, sobreposicao: int):
     with pytest.raises(ValueError):
         EstrategiaChunkingTamanhoComSobreposicao(tamanho_trecho=tamanho_trecho, sobreposicao=sobreposicao)
+
+
+def test_estrategia_estrutural_deve_priorizar_estrutura_markdown():
+    texto = "# Guia\n\nTexto introdutório.\n\n## Instalação\n\n- Baixar pacote\n- Executar instalador\n\nParágrafo final."
+    estrategia = EstrategiaChunkingEstrutural(tamanho_trecho=45, sobreposicao_trecho=0)
+
+    trechos = estrategia.gerar_trechos(texto)
+
+    assert [trecho.conteudo for trecho in trechos] == [
+        "# Guia\n\nTexto introdutório.\n\n## Instalação",
+        "- Baixar pacote\n- Executar instalador",
+        "Parágrafo final.",
+    ]
+    assert [trecho.indice_trecho for trecho in trechos] == [0, 1, 2]
+    assert all(trecho.tamanho_caracteres <= 45 for trecho in trechos)
+    assert trechos[0].indice_inicio == 0
+    assert trechos[0].indice_fim == len(trechos[0].conteudo)
+
+
+def test_estrategia_estrutural_deve_quebrar_texto_longo_por_frases_e_manter_sobreposicao():
+    texto = (
+        "Primeira frase curta. Segunda frase com detalhes úteis. "
+        "Terceira frase encerra o primeiro parágrafo.\n\n"
+        "Quarto período abre outro parágrafo. Quinto período fecha o texto."
+    )
+    estrategia = EstrategiaChunkingEstrutural(tamanho_trecho=70, sobreposicao_trecho=10)
+
+    trechos = estrategia.gerar_trechos(texto)
+
+    assert len(trechos) == 4
+    assert trechos[0].conteudo == "Primeira frase curta. Segunda frase com detalhes úteis."
+    assert "Terceira frase encerra" in trechos[1].conteudo
+    assert "Quarto período" in trechos[2].conteudo
+    assert "Quinto período fecha o texto." in trechos[3].conteudo
+    assert trechos[1].indice_inicio == trechos[0].indice_fim - 10
+    assert all(trecho.tamanho_caracteres <= 70 for trecho in trechos)
+
+
+def test_estrategia_estrutural_deve_retornar_trecho_unico_para_texto_curto():
+    texto = "Texto curto com uma única ideia."
+    estrategia = EstrategiaChunkingEstrutural(tamanho_trecho=200, sobreposicao_trecho=30)
+
+    trechos = estrategia.gerar_trechos(texto)
+
+    assert trechos == [
+        TrechoGerado(
+            indice_trecho=0,
+            conteudo=texto,
+            indice_inicio=0,
+            indice_fim=len(texto),
+            tamanho_caracteres=len(texto),
+        )
+    ]
+
+
+def test_estrategia_estrutural_deve_preservar_bloco_de_codigo_markdown_quando_couber_no_limite():
+    texto = "# Exemplo\n\nAntes do código.\n\n```python\ndef ola():\n    return 'oi'\n```\n\nDepois do código."
+    estrategia = EstrategiaChunkingEstrutural(tamanho_trecho=80, sobreposicao_trecho=0)
+
+    trechos = estrategia.gerar_trechos(texto)
+
+    assert len(trechos) == 2
+    assert "```python\ndef ola():\n    return 'oi'\n```" in trechos[0].conteudo
+    assert trechos[0].conteudo.endswith("```")
+    assert trechos[1].conteudo == "Depois do código."
+    assert all(trecho.tamanho_caracteres <= 80 for trecho in trechos)
