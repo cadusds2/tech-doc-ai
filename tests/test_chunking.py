@@ -109,6 +109,27 @@ def test_estrategia_estrutural_deve_retornar_trecho_unico_para_texto_curto():
     ]
 
 
+def test_estrategia_estrutural_deve_exigir_cerca_de_fechamento_com_tamanho_compativel():
+    texto = (
+        "# Exemplo\n\n"
+        "Antes.\n\n"
+        "````markdown\n"
+        "```python\n"
+        "print('interno')\n"
+        "```\n"
+        "````\n\n"
+        "Depois."
+    )
+    estrategia = EstrategiaChunkingEstrutural(tamanho_trecho=70, sobreposicao_trecho=0)
+
+    trechos = estrategia.gerar_trechos(texto)
+
+    assert len(trechos) == 2
+    assert "````markdown\n```python\nprint('interno')\n```\n````" in trechos[0].conteudo
+    assert trechos[0].conteudo.endswith("````")
+    assert trechos[1].conteudo == "Depois."
+
+
 def test_estrategia_estrutural_deve_preservar_bloco_de_codigo_markdown_quando_couber_no_limite():
     texto = "# Exemplo\n\nAntes do código.\n\n```python\ndef ola():\n    return 'oi'\n```\n\nDepois do código."
     estrategia = EstrategiaChunkingEstrutural(tamanho_trecho=80, sobreposicao_trecho=0)

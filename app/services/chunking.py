@@ -237,7 +237,9 @@ class EstrategiaChunkingEstrutural:
     def _coletar_bloco_codigo(self, linhas: list[tuple[int, int, str]], indice_inicial: int) -> tuple[int, int]:
         _, _, primeira_linha = linhas[indice_inicial]
         marcador = self._padrao_cerca_codigo.match(primeira_linha)
-        cerca = marcador.group(1)[0] if marcador else "`"
+        cerca_abertura = marcador.group(1) if marcador else "```"
+        caractere_cerca = cerca_abertura[0]
+        tamanho_cerca = len(cerca_abertura)
         indice = indice_inicial + 1
         fim_bloco = linhas[indice_inicial][1]
 
@@ -245,10 +247,19 @@ class EstrategiaChunkingEstrutural:
             _, fim_linha, conteudo_linha = linhas[indice]
             fim_bloco = fim_linha
             indice += 1
-            if conteudo_linha.lstrip().startswith(cerca * 3):
+            if self._linha_fecha_bloco_codigo(
+                linha=conteudo_linha,
+                caractere_cerca=caractere_cerca,
+                tamanho_cerca=tamanho_cerca,
+            ):
                 break
 
         return indice, fim_bloco
+
+    def _linha_fecha_bloco_codigo(self, linha: str, caractere_cerca: str, tamanho_cerca: int) -> bool:
+        conteudo = linha.lstrip()
+        tamanho_fechamento = len(conteudo) - len(conteudo.lstrip(caractere_cerca))
+        return tamanho_fechamento >= tamanho_cerca
 
     def _coletar_lista(self, linhas: list[tuple[int, int, str]], indice_inicial: int) -> tuple[int, int]:
         indice = indice_inicial
