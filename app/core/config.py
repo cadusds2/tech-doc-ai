@@ -23,6 +23,9 @@ class Configuracoes(BaseSettings):
     tamanho_lote_indexacao: int = 100
     tamanho_trecho: int = 800
     sobreposicao_trecho: int = 120
+    tamanho_maximo_tokens_trecho: int = 256
+    sobreposicao_tokens_trecho: int = 40
+    usar_chunking_por_tokens: bool = False
     limite_busca_padrao: int = 4
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")

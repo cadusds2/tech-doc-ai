@@ -1,7 +1,9 @@
 import pytest
 
 from app.services.chunking import (
+    ContadorTokensAproximadoPorPalavras,
     EstrategiaChunkingEstrutural,
+    EstrategiaChunkingPorMedidaComSobreposicao,
     EstrategiaChunkingTamanhoComSobreposicao,
     ServicoChunkingDocumentos,
     TrechoGerado,
@@ -141,3 +143,42 @@ def test_estrategia_estrutural_deve_preservar_bloco_de_codigo_markdown_quando_co
     assert trechos[0].conteudo.endswith("```")
     assert trechos[1].conteudo == "Depois do código."
     assert all(trecho.tamanho_caracteres <= 80 for trecho in trechos)
+
+
+def test_contador_tokens_aproximado_deve_medir_palavras():
+    medidor = ContadorTokensAproximadoPorPalavras()
+
+    assert medidor.medir("um  dois\ntrês") == 3
+
+
+def test_estrategia_por_tokens_deve_respeitar_tamanho_maximo_aproximado():
+    medidor = ContadorTokensAproximadoPorPalavras()
+    estrategia = EstrategiaChunkingPorMedidaComSobreposicao(
+        tamanho_maximo=4,
+        sobreposicao=1,
+        medidor=medidor,
+    )
+
+    trechos = estrategia.gerar_trechos("um dois três quatro cinco seis sete oito nove")
+
+    assert [medidor.medir(trecho.conteudo) for trecho in trechos] == [4, 4, 3]
+    assert all(medidor.medir(trecho.conteudo) <= 4 for trecho in trechos)
+
+
+def test_estrategia_por_tokens_deve_manter_sobreposicao_aproximada():
+    estrategia = EstrategiaChunkingPorMedidaComSobreposicao(
+        tamanho_maximo=4,
+        sobreposicao=2,
+        medidor=ContadorTokensAproximadoPorPalavras(),
+    )
+
+    trechos = estrategia.gerar_trechos("um dois três quatro cinco seis sete")
+
+    palavras_por_trecho = [trecho.conteudo.split() for trecho in trechos]
+    assert palavras_por_trecho == [
+        ["um", "dois", "três", "quatro"],
+        ["três", "quatro", "cinco", "seis"],
+        ["cinco", "seis", "sete"],
+    ]
+    assert palavras_por_trecho[0][-2:] == palavras_por_trecho[1][:2]
+    assert palavras_por_trecho[1][-2:] == palavras_por_trecho[2][:2]
