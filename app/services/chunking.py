@@ -165,10 +165,14 @@ class EstrategiaChunkingPorMedidaComSobreposicao:
             if indice_fim_unidade >= len(unidades):
                 break
 
-            indice_inicio_unidade = self._calcular_proximo_inicio(
+            proximo_inicio_unidade = self._calcular_proximo_inicio(
                 unidades=unidades,
                 indice_fim_unidade=indice_fim_unidade,
                 tamanho_trecho=tamanho_trecho,
+            )
+            indice_inicio_unidade = max(
+                proximo_inicio_unidade,
+                indice_inicio_unidade + 1,
             )
 
         return trechos

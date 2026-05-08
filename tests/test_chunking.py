@@ -7,7 +7,29 @@ from app.services.chunking import (
     EstrategiaChunkingTamanhoComSobreposicao,
     ServicoChunkingDocumentos,
     TrechoGerado,
+    UnidadeMedidaTrecho,
 )
+
+
+class MedidorComUnidadeSobredimensionada:
+    def medir(self, texto: str) -> int:
+        return sum(unidade.tamanho for unidade in self.gerar_unidades(texto))
+
+    def gerar_unidades(self, texto: str) -> list[UnidadeMedidaTrecho]:
+        unidades = []
+        inicio = 0
+        for parte, tamanho in [("enorme", 100), ("medio", 10), ("pequeno", 1)]:
+            indice_inicio = texto.index(parte, inicio)
+            indice_fim = indice_inicio + len(parte)
+            unidades.append(
+                UnidadeMedidaTrecho(
+                    indice_inicio=indice_inicio,
+                    indice_fim=indice_fim,
+                    tamanho=tamanho,
+                )
+            )
+            inicio = indice_fim
+        return unidades
 
 
 def test_estrategia_deve_gerar_trechos_com_sobreposicao():
@@ -182,3 +204,19 @@ def test_estrategia_por_tokens_deve_manter_sobreposicao_aproximada():
     ]
     assert palavras_por_trecho[0][-2:] == palavras_por_trecho[1][:2]
     assert palavras_por_trecho[1][-2:] == palavras_por_trecho[2][:2]
+
+
+def test_estrategia_por_medida_deve_avancar_apos_unidade_sobredimensionada():
+    estrategia = EstrategiaChunkingPorMedidaComSobreposicao(
+        tamanho_maximo=50,
+        sobreposicao=40,
+        medidor=MedidorComUnidadeSobredimensionada(),
+    )
+
+    trechos = estrategia.gerar_trechos("enorme medio pequeno")
+
+    assert [trecho.conteudo for trecho in trechos] == [
+        "enorme",
+        "medio pequeno",
+    ]
+    assert [trecho.indice_inicio for trecho in trechos] == [0, 7]
