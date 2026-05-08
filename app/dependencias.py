@@ -6,7 +6,12 @@ from sqlalchemy.orm import Session
 from app.core.config import obter_configuracoes
 from app.infra.banco import obter_sessao
 from app.repositories.repositorio_documentos import RepositorioDocumentos
-from app.services.chunking import EstrategiaChunkingEstrutural, ServicoChunkingDocumentos
+from app.services.chunking import (
+    ContadorTokensAproximadoPorPalavras,
+    EstrategiaChunkingEstrutural,
+    EstrategiaChunkingPorMedidaComSobreposicao,
+    ServicoChunkingDocumentos,
+)
 from app.services.consulta_rag import GeradorRespostaContextual, ServicoConsultaRAG, ServicoRecuperacaoSemantica
 from app.services.embeddings import ServicoEmbeddings, criar_provedor_embeddings
 from app.services.ingestao_documentos import ServicoIngestaoDocumentos
@@ -22,10 +27,17 @@ def obter_servico_parser_documentos() -> ServicoParserDocumentos:
 @lru_cache
 def obter_servico_chunking_documentos() -> ServicoChunkingDocumentos:
     configuracao = obter_configuracoes()
-    estrategia = EstrategiaChunkingEstrutural(
-        tamanho_trecho=configuracao.tamanho_trecho,
-        sobreposicao_trecho=configuracao.sobreposicao_trecho,
-    )
+    if configuracao.usar_chunking_por_tokens:
+        estrategia = EstrategiaChunkingPorMedidaComSobreposicao(
+            tamanho_maximo=configuracao.tamanho_maximo_tokens_trecho,
+            sobreposicao=configuracao.sobreposicao_tokens_trecho,
+            medidor=ContadorTokensAproximadoPorPalavras(),
+        )
+    else:
+        estrategia = EstrategiaChunkingEstrutural(
+            tamanho_trecho=configuracao.tamanho_trecho,
+            sobreposicao_trecho=configuracao.sobreposicao_trecho,
+        )
     return ServicoChunkingDocumentos(estrategia=estrategia)
 
 

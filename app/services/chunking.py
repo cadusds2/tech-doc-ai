@@ -13,6 +13,38 @@ class TrechoGerado:
 
 
 @dataclass(frozen=True)
+class UnidadeMedidaTrecho:
+    indice_inicio: int
+    indice_fim: int
+    tamanho: int
+
+
+class MedidorTamanhoTrecho(Protocol):
+    def medir(self, texto: str) -> int:
+        ...
+
+    def gerar_unidades(self, texto: str) -> list[UnidadeMedidaTrecho]:
+        ...
+
+
+class ContadorTokensAproximadoPorPalavras:
+    _padrao_palavra = re.compile(r"\S+")
+
+    def medir(self, texto: str) -> int:
+        return len(self._padrao_palavra.findall(texto))
+
+    def gerar_unidades(self, texto: str) -> list[UnidadeMedidaTrecho]:
+        return [
+            UnidadeMedidaTrecho(
+                indice_inicio=ocorrencia.start(),
+                indice_fim=ocorrencia.end(),
+                tamanho=1,
+            )
+            for ocorrencia in self._padrao_palavra.finditer(texto)
+        ]
+
+
+@dataclass(frozen=True)
 class _UnidadeTexto:
     indice_inicio: int
     indice_fim: int
@@ -75,6 +107,112 @@ class EstrategiaChunkingTamanhoComSobreposicao:
                 break
 
         return trechos
+
+
+class EstrategiaChunkingPorMedidaComSobreposicao:
+    def __init__(
+        self,
+        tamanho_maximo: int,
+        sobreposicao: int,
+        medidor: MedidorTamanhoTrecho,
+    ):
+        _validar_parametros_chunking(
+            tamanho_trecho=tamanho_maximo,
+            sobreposicao_trecho=sobreposicao,
+            nome_sobreposicao="sobreposicao",
+        )
+
+        self._tamanho_maximo = tamanho_maximo
+        self._sobreposicao = sobreposicao
+        self._medidor = medidor
+
+    def gerar_trechos(self, texto: str) -> list[TrechoGerado]:
+        if not texto.strip():
+            return []
+
+        unidades = self._medidor.gerar_unidades(texto)
+        if not unidades:
+            return []
+
+        trechos: list[TrechoGerado] = []
+        indice_inicio_unidade = 0
+
+        while indice_inicio_unidade < len(unidades):
+            indice_fim_unidade, tamanho_trecho = self._calcular_fim_unidade(
+                unidades=unidades,
+                indice_inicio_unidade=indice_inicio_unidade,
+            )
+            if indice_fim_unidade <= indice_inicio_unidade:
+                break
+
+            unidade_inicial = unidades[indice_inicio_unidade]
+            unidade_final = unidades[indice_fim_unidade - 1]
+            inicio = unidade_inicial.indice_inicio
+            fim = unidade_final.indice_fim
+            conteudo = texto[inicio:fim].strip()
+
+            if conteudo:
+                trechos.append(
+                    TrechoGerado(
+                        indice_trecho=len(trechos),
+                        conteudo=conteudo,
+                        indice_inicio=inicio,
+                        indice_fim=fim,
+                        tamanho_caracteres=len(conteudo),
+                    )
+                )
+
+            if indice_fim_unidade >= len(unidades):
+                break
+
+            proximo_inicio_unidade = self._calcular_proximo_inicio(
+                unidades=unidades,
+                indice_fim_unidade=indice_fim_unidade,
+                tamanho_trecho=tamanho_trecho,
+            )
+            indice_inicio_unidade = max(
+                proximo_inicio_unidade,
+                indice_inicio_unidade + 1,
+            )
+
+        return trechos
+
+    def _calcular_fim_unidade(
+        self,
+        unidades: list[UnidadeMedidaTrecho],
+        indice_inicio_unidade: int,
+    ) -> tuple[int, int]:
+        tamanho_trecho = 0
+        indice = indice_inicio_unidade
+
+        while indice < len(unidades):
+            tamanho_unidade = unidades[indice].tamanho
+            if tamanho_trecho > 0 and tamanho_trecho + tamanho_unidade > self._tamanho_maximo:
+                break
+            tamanho_trecho += tamanho_unidade
+            indice += 1
+            if tamanho_trecho >= self._tamanho_maximo:
+                break
+
+        return indice, tamanho_trecho
+
+    def _calcular_proximo_inicio(
+        self,
+        unidades: list[UnidadeMedidaTrecho],
+        indice_fim_unidade: int,
+        tamanho_trecho: int,
+    ) -> int:
+        alvo_sobreposicao = min(self._sobreposicao, max(0, tamanho_trecho - 1))
+        if alvo_sobreposicao == 0:
+            return indice_fim_unidade
+
+        tamanho_sobreposto = 0
+        indice = indice_fim_unidade
+        while indice > 0 and tamanho_sobreposto < alvo_sobreposicao:
+            indice -= 1
+            tamanho_sobreposto += unidades[indice].tamanho
+
+        return min(indice_fim_unidade, indice)
 
 
 class EstrategiaChunkingEstrutural:

@@ -1,11 +1,35 @@
 import pytest
 
 from app.services.chunking import (
+    ContadorTokensAproximadoPorPalavras,
     EstrategiaChunkingEstrutural,
+    EstrategiaChunkingPorMedidaComSobreposicao,
     EstrategiaChunkingTamanhoComSobreposicao,
     ServicoChunkingDocumentos,
     TrechoGerado,
+    UnidadeMedidaTrecho,
 )
+
+
+class MedidorComUnidadeSobredimensionada:
+    def medir(self, texto: str) -> int:
+        return sum(unidade.tamanho for unidade in self.gerar_unidades(texto))
+
+    def gerar_unidades(self, texto: str) -> list[UnidadeMedidaTrecho]:
+        unidades = []
+        inicio = 0
+        for parte, tamanho in [("enorme", 100), ("medio", 10), ("pequeno", 1)]:
+            indice_inicio = texto.index(parte, inicio)
+            indice_fim = indice_inicio + len(parte)
+            unidades.append(
+                UnidadeMedidaTrecho(
+                    indice_inicio=indice_inicio,
+                    indice_fim=indice_fim,
+                    tamanho=tamanho,
+                )
+            )
+            inicio = indice_fim
+        return unidades
 
 
 def test_estrategia_deve_gerar_trechos_com_sobreposicao():
@@ -141,3 +165,58 @@ def test_estrategia_estrutural_deve_preservar_bloco_de_codigo_markdown_quando_co
     assert trechos[0].conteudo.endswith("```")
     assert trechos[1].conteudo == "Depois do código."
     assert all(trecho.tamanho_caracteres <= 80 for trecho in trechos)
+
+
+def test_contador_tokens_aproximado_deve_medir_palavras():
+    medidor = ContadorTokensAproximadoPorPalavras()
+
+    assert medidor.medir("um  dois\ntrês") == 3
+
+
+def test_estrategia_por_tokens_deve_respeitar_tamanho_maximo_aproximado():
+    medidor = ContadorTokensAproximadoPorPalavras()
+    estrategia = EstrategiaChunkingPorMedidaComSobreposicao(
+        tamanho_maximo=4,
+        sobreposicao=1,
+        medidor=medidor,
+    )
+
+    trechos = estrategia.gerar_trechos("um dois três quatro cinco seis sete oito nove")
+
+    assert [medidor.medir(trecho.conteudo) for trecho in trechos] == [4, 4, 3]
+    assert all(medidor.medir(trecho.conteudo) <= 4 for trecho in trechos)
+
+
+def test_estrategia_por_tokens_deve_manter_sobreposicao_aproximada():
+    estrategia = EstrategiaChunkingPorMedidaComSobreposicao(
+        tamanho_maximo=4,
+        sobreposicao=2,
+        medidor=ContadorTokensAproximadoPorPalavras(),
+    )
+
+    trechos = estrategia.gerar_trechos("um dois três quatro cinco seis sete")
+
+    palavras_por_trecho = [trecho.conteudo.split() for trecho in trechos]
+    assert palavras_por_trecho == [
+        ["um", "dois", "três", "quatro"],
+        ["três", "quatro", "cinco", "seis"],
+        ["cinco", "seis", "sete"],
+    ]
+    assert palavras_por_trecho[0][-2:] == palavras_por_trecho[1][:2]
+    assert palavras_por_trecho[1][-2:] == palavras_por_trecho[2][:2]
+
+
+def test_estrategia_por_medida_deve_avancar_apos_unidade_sobredimensionada():
+    estrategia = EstrategiaChunkingPorMedidaComSobreposicao(
+        tamanho_maximo=50,
+        sobreposicao=40,
+        medidor=MedidorComUnidadeSobredimensionada(),
+    )
+
+    trechos = estrategia.gerar_trechos("enorme medio pequeno")
+
+    assert [trecho.conteudo for trecho in trechos] == [
+        "enorme",
+        "medio pequeno",
+    ]
+    assert [trecho.indice_inicio for trecho in trechos] == [0, 7]

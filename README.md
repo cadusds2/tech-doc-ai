@@ -147,8 +147,11 @@ As variáveis abaixo podem ser definidas em `.env` ou no ambiente de execução:
 - `MODELO_EMBEDDINGS`: nome do modelo de embeddings quando `sentence-transformers` estiver instalado.
 - `DIMENSAO_EMBEDDINGS`: dimensão dos vetores armazenados no `pgvector`.
 - `TAMANHO_LOTE_INDEXACAO`: quantidade máxima de trechos processados por rotina.
-- `TAMANHO_TRECHO`: tamanho de trecho na ingestão.
-- `SOBREPOSICAO_TRECHO`: sobreposição entre trechos.
+- `TAMANHO_TRECHO`: tamanho de trecho por caracteres na ingestão quando `USAR_CHUNKING_POR_TOKENS=false`.
+- `SOBREPOSICAO_TRECHO`: sobreposição por caracteres entre trechos quando `USAR_CHUNKING_POR_TOKENS=false`.
+- `TAMANHO_MAXIMO_TOKENS_TRECHO`: tamanho máximo aproximado de cada trecho em tokens quando `USAR_CHUNKING_POR_TOKENS=true`.
+- `SOBREPOSICAO_TOKENS_TRECHO`: sobreposição aproximada em tokens entre trechos quando `USAR_CHUNKING_POR_TOKENS=true`.
+- `USAR_CHUNKING_POR_TOKENS`: alterna a estratégia de chunking para medição aproximada por tokens; por padrão, mantém o chunking estrutural por caracteres.
 - `LIMITE_BUSCA_PADRAO`: limite padrão para buscas semânticas.
 
 ## Testes
