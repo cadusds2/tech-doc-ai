@@ -1,7 +1,7 @@
 import re
 from dataclasses import dataclass
 
-from sqlalchemy import or_
+from sqlalchemy import case, literal, or_
 
 from app.infra.modelos_orm import DocumentoORM, TrechoORM
 from app.services.chunking import TrechoGerado
@@ -100,6 +100,10 @@ class RepositorioDocumentos:
             return []
 
         filtros_termos = [TrechoORM.conteudo.ilike(f"%{termo}%") for termo in termos_busca]
+        criterios_ordenacao = self._criar_criterios_ordenacao_lexical(
+            texto_busca=texto_busca,
+            termos_busca=termos_busca,
+        )
         consulta = (
             self.sessao.query(
                 TrechoORM.id.label("trecho_id"),
@@ -109,6 +113,7 @@ class RepositorioDocumentos:
             )
             .join(DocumentoORM, DocumentoORM.id == TrechoORM.documento_id)
             .filter(or_(*filtros_termos))
+            .order_by(*criterios_ordenacao)
             .limit(limite * 3)
         )
 
@@ -128,6 +133,31 @@ class RepositorioDocumentos:
         ]
         resultados.sort(key=lambda trecho: trecho.pontuacao_similaridade, reverse=True)
         return resultados[:limite]
+
+    @staticmethod
+    def _criar_criterios_ordenacao_lexical(texto_busca: str, termos_busca: list[str]):
+        total_termos_encontrados = literal(0)
+        for termo in termos_busca:
+            total_termos_encontrados += case(
+                (TrechoORM.conteudo.ilike(f"%{termo}%"), 1),
+                else_=0,
+            )
+
+        texto_normalizado = texto_busca.strip()
+        frase_exata_encontrada = (
+            case(
+                (TrechoORM.conteudo.ilike(f"%{texto_normalizado}%"), 1),
+                else_=0,
+            )
+            if texto_normalizado
+            else literal(0)
+        )
+
+        return (
+            frase_exata_encontrada.desc(),
+            total_termos_encontrados.desc(),
+            TrechoORM.id.asc(),
+        )
 
     @staticmethod
     def _extrair_termos_busca(texto_busca: str) -> list[str]:
