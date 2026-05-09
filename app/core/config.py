@@ -28,6 +28,13 @@ class Configuracoes(BaseSettings):
     usar_chunking_por_tokens: bool = False
     limite_busca_padrao: int = 4
 
+    provedor_modelo_linguagem: str = "heuristico"
+    modelo_linguagem: str = "gpt-4.1-mini"
+    chave_api_modelo_linguagem: str | None = None
+    temperatura_modelo_linguagem: float = 0.2
+    tempo_limite_modelo_linguagem: float = 30.0
+    url_api_modelo_linguagem: str | None = None
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 
