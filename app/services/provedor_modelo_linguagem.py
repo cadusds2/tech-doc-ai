@@ -4,6 +4,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urljoin
 
 from app.services.consulta_rag import MensagemModelo, ProvedorModeloLinguagem, ProvedorModeloLinguagemHeuristico
 
@@ -21,6 +22,7 @@ class ConfiguracaoProvedorModeloLinguagem:
     chave_api: str | None
     temperatura: float
     tempo_limite: float
+    url_base: str
 
 
 class ProvedorModeloLinguagemOpenAICompativel:
@@ -30,7 +32,7 @@ class ProvedorModeloLinguagemOpenAICompativel:
         chave_api: str,
         temperatura: float = 0.2,
         tempo_limite: float = 30.0,
-        url_api: str = "https://api.openai.com/v1/chat/completions",
+        url_base: str = "https://api.openai.com/v1",
     ):
         if not chave_api or not chave_api.strip():
             raise ValueError("chave_api deve ser informada para o provedor externo de modelo de linguagem")
@@ -38,12 +40,14 @@ class ProvedorModeloLinguagemOpenAICompativel:
             raise ValueError("modelo deve ser informado para o provedor externo de modelo de linguagem")
         if tempo_limite <= 0:
             raise ValueError("tempo_limite deve ser maior que zero")
+        if not url_base or not url_base.strip():
+            raise ValueError("url_base deve ser informada para o provedor externo de modelo de linguagem")
 
         self._modelo = modelo
         self._chave_api = chave_api
         self._temperatura = temperatura
         self._tempo_limite = tempo_limite
-        self._url_api = url_api
+        self._url_api = self._montar_url_chat_completions(url_base)
 
     def gerar_texto(self, mensagens: list[MensagemModelo]) -> str:
         corpo = {
@@ -92,6 +96,10 @@ class ProvedorModeloLinguagemOpenAICompativel:
         return self._extrair_texto_resposta(dados_resposta)
 
     @staticmethod
+    def _montar_url_chat_completions(url_base: str) -> str:
+        return urljoin(f"{url_base.strip().rstrip('/')}/", "chat/completions")
+
+    @staticmethod
     def _normalizar_papel(papel: str) -> str:
         mapa_papeis = {"sistema": "system", "usuario": "user", "assistente": "assistant"}
         return mapa_papeis.get(papel, papel)
@@ -123,5 +131,6 @@ def criar_provedor_modelo_linguagem(
             chave_api=configuracao.chave_api or "",
             temperatura=configuracao.temperatura,
             tempo_limite=configuracao.tempo_limite,
+            url_base=configuracao.url_base,
         )
     raise ValueError(f"provedor_modelo_linguagem não suportado: {configuracao.provedor}")

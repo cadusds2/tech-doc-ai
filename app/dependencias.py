@@ -65,6 +65,7 @@ def obter_gerador_resposta_contextual() -> GeradorRespostaContextual:
             chave_api=configuracao.chave_api_modelo_linguagem,
             temperatura=configuracao.temperatura_modelo_linguagem,
             tempo_limite=configuracao.tempo_limite_modelo_linguagem,
+            url_base=configuracao.url_base_modelo_linguagem,
         )
     )
     return GeradorRespostaContextual(provedor_modelo_linguagem=provedor)

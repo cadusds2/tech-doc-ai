@@ -143,7 +143,10 @@ MODELO_LINGUAGEM=gpt-4.1-mini
 CHAVE_API_MODELO_LINGUAGEM=sua-chave-aqui
 TEMPERATURA_MODELO_LINGUAGEM=0.2
 TEMPO_LIMITE_MODELO_LINGUAGEM=30
+URL_BASE_MODELO_LINGUAGEM=https://api.openai.com/v1
 ```
+
+Para provedores compatíveis hospedados fora da OpenAI, ajuste `URL_BASE_MODELO_LINGUAGEM` para a URL base do serviço, por exemplo `http://localhost:11434/v1`; a aplicação adiciona o caminho `/chat/completions` ao enviar a requisição.
 
 O prompt da consulta RAG exige resposta em português brasileiro e restringe a geração ao contexto recuperado. Se o provedor externo falhar, a aplicação registra logs estruturados e retorna uma mensagem segura sem expor detalhes internos ou a chave de API.
 
@@ -175,6 +178,7 @@ As variáveis abaixo podem ser definidas em `.env` ou no ambiente de execução:
 - `CHAVE_API_MODELO_LINGUAGEM`: chave de API do provedor externo; obrigatória quando `PROVEDOR_MODELO_LINGUAGEM=openai`.
 - `TEMPERATURA_MODELO_LINGUAGEM`: temperatura enviada ao provedor externo.
 - `TEMPO_LIMITE_MODELO_LINGUAGEM`: tempo limite, em segundos, para chamadas ao provedor externo.
+- `URL_BASE_MODELO_LINGUAGEM`: URL base do provedor compatível com chat completions; por padrão usa `https://api.openai.com/v1`.
 
 ## Testes
 
