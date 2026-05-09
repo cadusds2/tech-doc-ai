@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 
 from app.api.schemas.chat import FonteUtilizada, RespostaPergunta
 from app.services.embeddings import ServicoEmbeddings
@@ -42,6 +42,84 @@ class ProvedorModeloLinguagemHeuristico:
             "os documentos indicam que a pergunta pode ser respondida pelo contexto abaixo. "
             "Use as fontes para validação adicional quando necessário.\n\n"
             f"{contexto}"
+        )
+
+
+class ServicoRecuperacaoHibrida:
+    def __init__(
+        self,
+        repositorio,
+        servico_embeddings: ServicoEmbeddings,
+        peso_busca_vetorial: float = 0.7,
+        peso_busca_lexical: float = 0.3,
+    ):
+        self._repositorio = repositorio
+        self._servico_embeddings = servico_embeddings
+        self._peso_busca_vetorial = peso_busca_vetorial
+        self._peso_busca_lexical = peso_busca_lexical
+
+    def recuperar_trechos(self, pergunta: str, limite_fontes: int) -> list[TrechoRecuperado]:
+        if limite_fontes <= 0:
+            return []
+
+        resultados_por_trecho_id: dict[int, dict[str, Any]] = {}
+
+        for trecho in self._buscar_trechos_vetoriais(pergunta=pergunta, limite_fontes=limite_fontes):
+            self._registrar_resultado(
+                resultados_por_trecho_id=resultados_por_trecho_id,
+                trecho=trecho,
+                pontuacao_vetorial=trecho.pontuacao_similaridade,
+            )
+
+        for trecho in self._repositorio.buscar_trechos_por_texto(texto_busca=pergunta, limite=limite_fontes):
+            self._registrar_resultado(
+                resultados_por_trecho_id=resultados_por_trecho_id,
+                trecho=trecho,
+                pontuacao_lexical=trecho.pontuacao_similaridade,
+            )
+
+        trechos_combinados = [
+            self._montar_trecho_combinado(dados_trecho) for dados_trecho in resultados_por_trecho_id.values()
+        ]
+        trechos_combinados.sort(key=lambda trecho: trecho.pontuacao_similaridade, reverse=True)
+        return trechos_combinados[:limite_fontes]
+
+    def _buscar_trechos_vetoriais(self, pergunta: str, limite_fontes: int) -> list[TrechoRecuperado]:
+        embeddings = self._servico_embeddings.gerar_embeddings([pergunta])
+        if not embeddings:
+            return []
+        return self._repositorio.buscar_trechos_similares(embedding_pergunta=embeddings[0], limite=limite_fontes)
+
+    @staticmethod
+    def _registrar_resultado(
+        resultados_por_trecho_id: dict[int, dict[str, Any]],
+        trecho: TrechoRecuperado,
+        pontuacao_vetorial: float = 0.0,
+        pontuacao_lexical: float = 0.0,
+    ) -> None:
+        dados_trecho = resultados_por_trecho_id.setdefault(
+            trecho.trecho_id,
+            {
+                "trecho": trecho,
+                "pontuacao_vetorial": 0.0,
+                "pontuacao_lexical": 0.0,
+            },
+        )
+        dados_trecho["pontuacao_vetorial"] = max(float(dados_trecho["pontuacao_vetorial"]), pontuacao_vetorial)
+        dados_trecho["pontuacao_lexical"] = max(float(dados_trecho["pontuacao_lexical"]), pontuacao_lexical)
+
+    def _montar_trecho_combinado(self, dados_trecho: dict[str, Any]) -> TrechoRecuperado:
+        trecho = dados_trecho["trecho"]
+        pontuacao_combinada = (
+            self._peso_busca_vetorial * float(dados_trecho["pontuacao_vetorial"])
+            + self._peso_busca_lexical * float(dados_trecho["pontuacao_lexical"])
+        )
+        return TrechoRecuperado(
+            trecho_id=trecho.trecho_id,
+            documento_id=trecho.documento_id,
+            nome_arquivo=trecho.nome_arquivo,
+            conteudo=trecho.conteudo,
+            pontuacao_similaridade=pontuacao_combinada,
         )
 
 
@@ -89,7 +167,7 @@ class GeradorRespostaContextual:
 
         return (
             f"{resposta_modelo}\n\n"
-            f"Aviso: resposta gerada a partir de {total_fontes} fonte(s) recuperada(s) semanticamente e sem garantia de precisão absoluta."
+            f"Aviso: resposta gerada a partir de {total_fontes} fonte(s) recuperada(s) por busca híbrida e sem garantia de precisão absoluta."
         )
 
     @staticmethod
@@ -120,7 +198,7 @@ class GeradorRespostaContextual:
 class ServicoConsultaRAG:
     def __init__(
         self,
-        servico_recuperacao: ServicoRecuperacaoSemantica,
+        servico_recuperacao: ServicoRecuperacaoHibrida,
         gerador_resposta: GeradorRespostaContextual,
     ):
         self._servico_recuperacao = servico_recuperacao

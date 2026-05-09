@@ -124,11 +124,13 @@ Exemplo de resposta:
 ## Fluxo ponta a ponta do RAG
 
 1. **Pergunta**: a API recebe `pergunta` e `limite_fontes` no endpoint `POST /chat/perguntar`.
-2. **Embedding**: `ServicoRecuperacaoSemantica` gera o vetor da pergunta por meio de `ServicoEmbeddings`.
+2. **Embedding**: `ServicoRecuperacaoHibrida` gera o vetor da pergunta por meio de `ServicoEmbeddings` para manter a busca vetorial existente.
 3. **Busca vetorial**: `RepositorioDocumentos.buscar_trechos_similares` consulta os trechos indexados no `pgvector`, ordenando por distância de cosseno.
-4. **Contexto**: `ServicoConsultaRAG` organiza os trechos em um bloco textual com metadados de origem.
-5. **Resposta**: `GeradorRespostaContextual` produz uma síntese baseada no contexto recuperado e explicita limitações.
-6. **Fontes**: a API retorna a lista de fontes utilizadas, com documento, trecho, conteúdo e pontuação.
+4. **Busca lexical**: `RepositorioDocumentos.buscar_trechos_por_texto` procura termos da pergunta em `TrechoORM.conteudo`, pontuando a cobertura dos termos e dando bônus para frase exata.
+5. **Combinação**: o serviço remove duplicidades por `trecho_id` e calcula `pontuacao_combinada = peso_busca_vetorial * pontuacao_vetorial + peso_busca_lexical * pontuacao_lexical`.
+6. **Contexto**: `ServicoConsultaRAG` organiza os trechos combinados em um bloco textual com metadados de origem.
+7. **Resposta**: `GeradorRespostaContextual` produz uma síntese baseada no contexto recuperado e explicita limitações.
+8. **Fontes**: a API retorna a lista de fontes utilizadas, com documento, trecho, conteúdo e pontuação híbrida.
 
 
 ## Configuração do provedor de modelo de linguagem
@@ -192,7 +194,9 @@ As variáveis abaixo podem ser definidas em `.env` ou no ambiente de execução:
 - `TAMANHO_MAXIMO_TOKENS_TRECHO`: tamanho máximo aproximado de cada trecho em tokens quando `USAR_CHUNKING_POR_TOKENS=true`.
 - `SOBREPOSICAO_TOKENS_TRECHO`: sobreposição aproximada em tokens entre trechos quando `USAR_CHUNKING_POR_TOKENS=true`.
 - `USAR_CHUNKING_POR_TOKENS`: alterna a estratégia de chunking para medição aproximada por tokens; por padrão, mantém o chunking estrutural por caracteres.
-- `LIMITE_BUSCA_PADRAO`: limite padrão para buscas semânticas.
+- `LIMITE_BUSCA_PADRAO`: limite padrão para buscas RAG.
+- `PESO_BUSCA_VETORIAL`: peso da pontuação vetorial na recuperação híbrida; padrão `0.7`.
+- `PESO_BUSCA_LEXICAL`: peso da pontuação lexical na recuperação híbrida; padrão `0.3`.
 - `PROVEDOR_MODELO_LINGUAGEM`: seleciona o provedor de geração (`heuristico`, `local`, `openai`, `groq` ou `openai_compativel`).
 - `MODELO_LINGUAGEM`: modelo usado pelo provedor externo compatível com completação de conversa.
 - `CHAVE_API_MODELO_LINGUAGEM`: chave de API do provedor externo; obrigatória quando `PROVEDOR_MODELO_LINGUAGEM` for `openai`, `groq` ou `openai_compativel`.

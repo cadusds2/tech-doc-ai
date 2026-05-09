@@ -12,7 +12,7 @@ from app.services.chunking import (
     EstrategiaChunkingPorMedidaComSobreposicao,
     ServicoChunkingDocumentos,
 )
-from app.services.consulta_rag import GeradorRespostaContextual, ServicoConsultaRAG, ServicoRecuperacaoSemantica
+from app.services.consulta_rag import GeradorRespostaContextual, ServicoConsultaRAG, ServicoRecuperacaoHibrida
 from app.services.embeddings import ServicoEmbeddings, criar_provedor_embeddings
 from app.services.ingestao_documentos import ServicoIngestaoDocumentos
 from app.services.provedor_modelo_linguagem import (
@@ -98,9 +98,12 @@ def obter_servico_ingestao_documentos(sessao: Session = Depends(obter_sessao)) -
 
 
 def obter_servico_consulta_rag(sessao: Session = Depends(obter_sessao)) -> ServicoConsultaRAG:
-    servico_recuperacao = ServicoRecuperacaoSemantica(
+    configuracao = obter_configuracoes()
+    servico_recuperacao = ServicoRecuperacaoHibrida(
         repositorio=RepositorioDocumentos(sessao),
         servico_embeddings=obter_servico_embeddings(),
+        peso_busca_vetorial=configuracao.peso_busca_vetorial,
+        peso_busca_lexical=configuracao.peso_busca_lexical,
     )
     return ServicoConsultaRAG(
         servico_recuperacao=servico_recuperacao,
