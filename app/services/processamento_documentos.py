@@ -66,13 +66,13 @@ class AgendadorBackgroundTasksFastAPI:
         fabrica_sessao: Callable[[], Session],
         parser: ServicoParserDocumentos,
         servico_chunking: ServicoChunkingDocumentos,
-        servico_embeddings: ServicoEmbeddings | None = None,
+        fabrica_servico_embeddings: Callable[[], ServicoEmbeddings] | None = None,
     ):
         self._tarefas = tarefas
         self._fabrica_sessao = fabrica_sessao
         self._parser = parser
         self._servico_chunking = servico_chunking
-        self._servico_embeddings = servico_embeddings
+        self._fabrica_servico_embeddings = fabrica_servico_embeddings
 
     def agendar_processamento(self, documento_id: int, nome_arquivo: str, conteudo_bytes: bytes) -> None:
         self._tarefas.add_task(
@@ -83,7 +83,7 @@ class AgendadorBackgroundTasksFastAPI:
             self._fabrica_sessao,
             self._parser,
             self._servico_chunking,
-            self._servico_embeddings,
+            self._fabrica_servico_embeddings,
         )
 
 
@@ -94,17 +94,17 @@ def executar_processamento_documento_em_nova_sessao(
     fabrica_sessao: Callable[[], Session],
     parser: ServicoParserDocumentos,
     servico_chunking: ServicoChunkingDocumentos,
-    servico_embeddings: ServicoEmbeddings | None = None,
+    fabrica_servico_embeddings: Callable[[], ServicoEmbeddings] | None = None,
 ) -> None:
     sessao = fabrica_sessao()
     try:
         repositorio = RepositorioDocumentos(sessao)
         configuracao = obter_configuracoes()
         servico_indexacao = None
-        if configuracao.habilitar_pgvector and servico_embeddings is not None:
+        if configuracao.habilitar_pgvector and fabrica_servico_embeddings is not None:
             servico_indexacao = ServicoIndexacaoVetorial(
                 repositorio=repositorio,
-                servico_embeddings=servico_embeddings,
+                servico_embeddings=fabrica_servico_embeddings(),
                 tamanho_lote_padrao=configuracao.tamanho_lote_indexacao,
             )
         ProcessadorDocumentos(

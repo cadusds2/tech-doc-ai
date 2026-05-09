@@ -92,18 +92,21 @@ def obter_servico_ingestao_documentos(
     sessao: Session = Depends(obter_sessao),
 ) -> ServicoIngestaoDocumentos:
     configuracao = obter_configuracoes()
-    servico_indexacao: ServicoIndexacaoVetorial | None = None
-    if configuracao.habilitar_pgvector:
-        servico_indexacao = ServicoIndexacaoVetorial(
+
+    def criar_servico_indexacao() -> ServicoIndexacaoVetorial | None:
+        if not configuracao.habilitar_pgvector:
+            return None
+        return ServicoIndexacaoVetorial(
             repositorio=RepositorioDocumentos(sessao),
             servico_embeddings=obter_servico_embeddings(),
             tamanho_lote_padrao=configuracao.tamanho_lote_indexacao,
         )
+
     return ServicoIngestaoDocumentos(
         repositorio=RepositorioDocumentos(sessao),
         parser=obter_servico_parser_documentos(),
         servico_chunking=obter_servico_chunking_documentos(),
-        servico_indexacao=servico_indexacao,
+        fabrica_servico_indexacao=criar_servico_indexacao,
     )
 
 
@@ -115,7 +118,7 @@ def obter_agendador_processamento_documentos(
         fabrica_sessao=FabricaSessao,
         parser=obter_servico_parser_documentos(),
         servico_chunking=obter_servico_chunking_documentos(),
-        servico_embeddings=obter_servico_embeddings(),
+        fabrica_servico_embeddings=obter_servico_embeddings,
     )
 
 

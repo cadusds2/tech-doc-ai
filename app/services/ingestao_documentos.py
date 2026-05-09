@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from app.domain.documento import DocumentoIngerido, StatusProcessamentoDocumento
 from app.repositories.repositorio_documentos import RepositorioDocumentos
 from app.services.chunking import ServicoChunkingDocumentos
@@ -13,11 +15,13 @@ class ServicoIngestaoDocumentos:
         parser: ServicoParserDocumentos,
         servico_chunking: ServicoChunkingDocumentos,
         servico_indexacao: ServicoIndexacaoVetorial | None = None,
+        fabrica_servico_indexacao: Callable[[], ServicoIndexacaoVetorial | None] | None = None,
     ):
         self._repositorio = repositorio
         self._parser = parser
         self._servico_chunking = servico_chunking
         self._servico_indexacao = servico_indexacao
+        self._fabrica_servico_indexacao = fabrica_servico_indexacao
 
     def registrar_documento_recebido(self, nome_arquivo: str, conteudo_bytes: bytes) -> DocumentoIngerido:
         documento = self._repositorio.registrar_documento_recebido(
@@ -37,7 +41,7 @@ class ServicoIngestaoDocumentos:
             repositorio=self._repositorio,
             parser=self._parser,
             servico_chunking=self._servico_chunking,
-            servico_indexacao=self._servico_indexacao,
+            servico_indexacao=self._obter_servico_indexacao(),
         ).processar_documento(
             documento_id=documento_recebido.id,
             nome_arquivo=nome_arquivo,
@@ -47,6 +51,14 @@ class ServicoIngestaoDocumentos:
         if documento_processado is None:
             raise ErroLeituraDocumento("Documento não encontrado após processamento.")
         return _criar_documento_ingerido(documento_processado)
+
+    def _obter_servico_indexacao(self) -> ServicoIndexacaoVetorial | None:
+        if self._servico_indexacao is not None:
+            return self._servico_indexacao
+        if self._fabrica_servico_indexacao is None:
+            return None
+        self._servico_indexacao = self._fabrica_servico_indexacao()
+        return self._servico_indexacao
 
     def buscar_documento(self, documento_id: int) -> DocumentoIngerido | None:
         documento = self._repositorio.buscar_documento_por_id(documento_id)
