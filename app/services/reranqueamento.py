@@ -73,10 +73,12 @@ class ReranqueadorHeuristicoTrechos:
 
     @classmethod
     def _extrair_termos(cls, texto: str) -> set[str]:
+        return {termo for termo in cls._extrair_tokens(texto) if len(termo) >= 3}
+
+    @classmethod
+    def _extrair_tokens(cls, texto: str) -> set[str]:
         texto_normalizado = cls._normalizar_texto(texto)
-        return {
-            termo for termo in re.findall(r"\w+", texto_normalizado) if len(termo) >= 3
-        }
+        return set(re.findall(r"\w+", texto_normalizado))
 
     @staticmethod
     def _normalizar_texto(texto: str) -> str:
@@ -97,9 +99,10 @@ class ReranqueadorHeuristicoTrechos:
         if not termos_pergunta:
             return 0.0
 
-        termos_encontrados = {
-            termo for termo in termos_pergunta if termo in texto_trecho_normalizado
-        }
+        termos_trecho = ReranqueadorHeuristicoTrechos._extrair_tokens(
+            texto_trecho_normalizado
+        )
+        termos_encontrados = termos_pergunta & termos_trecho
         pontuacao = len(termos_encontrados) / len(termos_pergunta)
         if (
             pergunta_normalizada.strip()

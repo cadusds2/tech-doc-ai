@@ -63,3 +63,28 @@ def test_reranqueador_heuristico_deve_manter_pontuacao_original_como_desempate_r
     )
 
     assert [trecho.trecho_id for trecho in trechos_reranqueados] == [2, 1]
+
+
+def test_reranqueador_heuristico_deve_comparar_termos_por_tokens_inteiros():
+    trechos = [
+        _trecho(
+            trecho_id=1,
+            conteudo=(
+                "A capitalização do texto é frágil e descreve apicultura, "
+                "mas não menciona os termos técnicos da pergunta."
+            ),
+            pontuacao=0.95,
+        ),
+        _trecho(
+            trecho_id=2,
+            conteudo="A API do RAG consulta SQL para recuperar contexto relevante.",
+            pontuacao=0.50,
+        ),
+    ]
+    reranqueador = ReranqueadorHeuristicoTrechos()
+
+    trechos_reranqueados = reranqueador.reranquear(
+        pergunta="API RAG SQL", trechos=trechos
+    )
+
+    assert [trecho.trecho_id for trecho in trechos_reranqueados] == [2, 1]
