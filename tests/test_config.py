@@ -15,3 +15,14 @@ def test_configuracao_padrao_deve_manter_chunking_por_caracteres():
     assert configuracoes.usar_chunking_por_tokens is False
     assert configuracoes.tamanho_maximo_tokens_trecho == 256
     assert configuracoes.sobreposicao_tokens_trecho == 40
+
+
+def test_configuracao_padrao_deve_manter_provedor_modelo_linguagem_local():
+    configuracoes = Configuracoes(_env_file=None)
+
+    assert configuracoes.provedor_modelo_linguagem == "heuristico"
+    assert configuracoes.modelo_linguagem == "gpt-4.1-mini"
+    assert configuracoes.chave_api_modelo_linguagem is None
+    assert configuracoes.temperatura_modelo_linguagem == 0.2
+    assert configuracoes.tempo_limite_modelo_linguagem == 30.0
+    assert configuracoes.url_base_modelo_linguagem == "https://api.openai.com/v1"

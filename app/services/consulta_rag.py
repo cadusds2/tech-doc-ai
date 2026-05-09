@@ -1,8 +1,11 @@
+import logging
 from dataclasses import dataclass
 from typing import Protocol
 
 from app.api.schemas.chat import FonteUtilizada, RespostaPergunta
 from app.services.embeddings import ServicoEmbeddings
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -66,7 +69,21 @@ class GeradorRespostaContextual:
             )
 
         mensagens = self._montar_prompt(pergunta=pergunta, contexto=contexto)
-        resposta_modelo = self._provedor_modelo_linguagem.gerar_texto(mensagens).strip()
+        try:
+            resposta_modelo = self._provedor_modelo_linguagem.gerar_texto(mensagens).strip()
+        except Exception as erro:
+            logger.exception(
+                "falha_geracao_resposta_contextual",
+                extra={
+                    "total_fontes": total_fontes,
+                    "tipo_erro": type(erro).__name__,
+                },
+            )
+            resposta_modelo = (
+                "Não foi possível gerar uma resposta com segurança no momento. "
+                "As fontes recuperadas continuam disponíveis para consulta."
+            )
+
         if not resposta_modelo:
             resposta_modelo = "Não consegui gerar uma resposta textual com o contexto disponível."
 
@@ -81,8 +98,9 @@ class GeradorRespostaContextual:
             MensagemModelo(
                 papel="sistema",
                 conteudo=(
-                    "Você responde perguntas com base apenas no contexto recuperado. "
-                    "Se houver lacunas, deixe isso explícito e não invente fatos."
+                    "Você responde sempre em português brasileiro. "
+                    "Use exclusivamente o contexto recuperado para responder. "
+                    "Se houver lacunas, deixe isso explícito e não invente fatos, exemplos ou referências."
                 ),
             ),
             MensagemModelo(
@@ -93,7 +111,7 @@ class GeradorRespostaContextual:
                     "Contexto recuperado:\n"
                     f"{contexto}\n\n"
                     "Instruções: responda em português brasileiro, de forma objetiva, "
-                    "e deixe claro quando o contexto não for suficiente."
+                    "use exclusivamente o contexto recuperado e deixe claro quando o contexto não for suficiente."
                 ),
             ),
         ]

@@ -15,6 +15,10 @@ from app.services.chunking import (
 from app.services.consulta_rag import GeradorRespostaContextual, ServicoConsultaRAG, ServicoRecuperacaoSemantica
 from app.services.embeddings import ServicoEmbeddings, criar_provedor_embeddings
 from app.services.ingestao_documentos import ServicoIngestaoDocumentos
+from app.services.provedor_modelo_linguagem import (
+    ConfiguracaoProvedorModeloLinguagem,
+    criar_provedor_modelo_linguagem,
+)
 from app.services.indexacao_vetorial import ServicoIndexacaoVetorial
 from app.services.parser_documentos import ServicoParserDocumentos
 
@@ -53,7 +57,18 @@ def obter_servico_embeddings() -> ServicoEmbeddings:
 
 @lru_cache
 def obter_gerador_resposta_contextual() -> GeradorRespostaContextual:
-    return GeradorRespostaContextual()
+    configuracao = obter_configuracoes()
+    provedor = criar_provedor_modelo_linguagem(
+        ConfiguracaoProvedorModeloLinguagem(
+            provedor=configuracao.provedor_modelo_linguagem,
+            modelo=configuracao.modelo_linguagem,
+            chave_api=configuracao.chave_api_modelo_linguagem,
+            temperatura=configuracao.temperatura_modelo_linguagem,
+            tempo_limite=configuracao.tempo_limite_modelo_linguagem,
+            url_base=configuracao.url_base_modelo_linguagem,
+        )
+    )
+    return GeradorRespostaContextual(provedor_modelo_linguagem=provedor)
 
 
 def obter_servico_indexacao_vetorial(sessao: Session = Depends(obter_sessao)) -> ServicoIndexacaoVetorial:
