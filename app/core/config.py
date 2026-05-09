@@ -29,6 +29,7 @@ class Configuracoes(BaseSettings):
     limite_busca_padrao: int = 4
     peso_busca_vetorial: float = 0.7
     peso_busca_lexical: float = 0.3
+    habilitar_reranqueamento: bool = True
 
     provedor_modelo_linguagem: str = "heuristico"
     modelo_linguagem: str = "gpt-4.1-mini"
@@ -37,7 +38,9 @@ class Configuracoes(BaseSettings):
     tempo_limite_modelo_linguagem: float = 30.0
     url_api_modelo_linguagem: str | None = None
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
 
 
 @lru_cache

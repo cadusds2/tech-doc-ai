@@ -12,7 +12,12 @@ from app.services.chunking import (
     EstrategiaChunkingPorMedidaComSobreposicao,
     ServicoChunkingDocumentos,
 )
-from app.services.consulta_rag import GeradorRespostaContextual, ServicoConsultaRAG, ServicoRecuperacaoHibrida
+from app.services.consulta_rag import (
+    GeradorRespostaContextual,
+    ServicoConsultaRAG,
+    ServicoRecuperacaoHibrida,
+)
+from app.services.reranqueamento import ReranqueadorHeuristicoTrechos
 from app.services.embeddings import ServicoEmbeddings, criar_provedor_embeddings
 from app.services.ingestao_documentos import ServicoIngestaoDocumentos
 from app.services.provedor_modelo_linguagem import (
@@ -71,7 +76,9 @@ def obter_gerador_resposta_contextual() -> GeradorRespostaContextual:
     return GeradorRespostaContextual(provedor_modelo_linguagem=provedor)
 
 
-def obter_servico_indexacao_vetorial(sessao: Session = Depends(obter_sessao)) -> ServicoIndexacaoVetorial:
+def obter_servico_indexacao_vetorial(
+    sessao: Session = Depends(obter_sessao),
+) -> ServicoIndexacaoVetorial:
     configuracao = obter_configuracoes()
     return ServicoIndexacaoVetorial(
         repositorio=RepositorioDocumentos(sessao),
@@ -80,7 +87,9 @@ def obter_servico_indexacao_vetorial(sessao: Session = Depends(obter_sessao)) ->
     )
 
 
-def obter_servico_ingestao_documentos(sessao: Session = Depends(obter_sessao)) -> ServicoIngestaoDocumentos:
+def obter_servico_ingestao_documentos(
+    sessao: Session = Depends(obter_sessao),
+) -> ServicoIngestaoDocumentos:
     configuracao = obter_configuracoes()
     servico_indexacao: ServicoIndexacaoVetorial | None = None
     if configuracao.habilitar_pgvector:
@@ -97,7 +106,9 @@ def obter_servico_ingestao_documentos(sessao: Session = Depends(obter_sessao)) -
     )
 
 
-def obter_servico_consulta_rag(sessao: Session = Depends(obter_sessao)) -> ServicoConsultaRAG:
+def obter_servico_consulta_rag(
+    sessao: Session = Depends(obter_sessao),
+) -> ServicoConsultaRAG:
     configuracao = obter_configuracoes()
     servico_recuperacao = ServicoRecuperacaoHibrida(
         repositorio=RepositorioDocumentos(sessao),
@@ -105,7 +116,13 @@ def obter_servico_consulta_rag(sessao: Session = Depends(obter_sessao)) -> Servi
         peso_busca_vetorial=configuracao.peso_busca_vetorial,
         peso_busca_lexical=configuracao.peso_busca_lexical,
     )
+    reranqueador_trechos = (
+        ReranqueadorHeuristicoTrechos()
+        if configuracao.habilitar_reranqueamento
+        else None
+    )
     return ServicoConsultaRAG(
         servico_recuperacao=servico_recuperacao,
         gerador_resposta=obter_gerador_resposta_contextual(),
+        reranqueador_trechos=reranqueador_trechos,
     )
