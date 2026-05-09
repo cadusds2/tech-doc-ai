@@ -220,3 +220,30 @@ def test_estrategia_por_medida_deve_avancar_apos_unidade_sobredimensionada():
         "medio pequeno",
     ]
     assert [trecho.indice_inicio for trecho in trechos] == [0, 7]
+
+
+def test_estrategia_estrutural_deve_preencher_metadados_markdown():
+    texto = "# Guia\n\nIntrodução.\n\n## Instalação\n\nExecute o instalador."
+    estrategia = EstrategiaChunkingEstrutural(tamanho_trecho=30, sobreposicao_trecho=0)
+
+    trechos = estrategia.gerar_trechos(texto)
+
+    assert trechos[0].secao == "Guia"
+    assert trechos[0].titulo_contexto == "Guia"
+    assert trechos[0].caminho_hierarquico == "Guia"
+    assert trechos[-1].secao == "Instalação"
+    assert trechos[-1].titulo_contexto == "Instalação"
+    assert trechos[-1].caminho_hierarquico == "Guia > Instalação"
+    assert trechos[-1].pagina is None
+
+
+def test_estrategia_estrutural_deve_preencher_pagina_de_pdf_e_remover_marcador():
+    texto = "<!-- pagina: 1 -->\nPrimeira página com contexto.\n\n<!-- pagina: 2 -->\nSegunda página com detalhes."
+    estrategia = EstrategiaChunkingEstrutural(tamanho_trecho=45, sobreposicao_trecho=0)
+
+    trechos = estrategia.gerar_trechos(texto)
+
+    assert [trecho.pagina for trecho in trechos] == [1, 2]
+    assert "<!-- pagina" not in trechos[0].conteudo
+    assert "<!-- pagina" not in trechos[1].conteudo
+    assert trechos[0].secao is None

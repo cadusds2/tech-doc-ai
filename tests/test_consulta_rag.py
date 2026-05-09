@@ -276,3 +276,56 @@ def test_recuperacao_hibrida_deve_combinar_resultados_e_remover_duplicidades():
     assert round(trechos[0].pontuacao_similaridade, 2) == 0.86
     assert round(trechos[1].pontuacao_similaridade, 2) == 0.49
     assert round(trechos[2].pontuacao_similaridade, 2) == 0.27
+
+
+def test_consulta_rag_deve_incluir_metadados_nas_fontes_e_no_contexto():
+    resultados = [
+        TrechoRecuperado(
+            trecho_id=7,
+            documento_id=4,
+            nome_arquivo="manual.pdf",
+            conteudo="Detalhes de instalação do agente.",
+            pontuacao_similaridade=0.93219,
+            pagina=5,
+            secao="Instalação",
+            titulo_contexto="Instalação",
+            caminho_hierarquico="Guia > Instalação",
+        )
+    ]
+    recuperacao = ServicoRecuperacaoSemantica(
+        repositorio=_RepositorioBuscaFalso(resultados=resultados),
+        servico_embeddings=_ServicoEmbeddingsFalso(),
+    )
+    provedor_modelo = _ProvedorModeloFalso()
+    servico = ServicoConsultaRAG(
+        servico_recuperacao=recuperacao,
+        gerador_resposta=GeradorRespostaContextual(provedor_modelo_linguagem=provedor_modelo),
+    )
+
+    resposta = servico.responder_pergunta(pergunta="Como instalar?", limite_fontes=1)
+
+    fonte = resposta.fontes[0]
+    assert fonte.pagina == 5
+    assert fonte.secao == "Instalação"
+    assert fonte.titulo_contexto == "Instalação"
+    assert fonte.caminho_hierarquico == "Guia > Instalação"
+    contexto_enviado = provedor_modelo.mensagens_recebidas[1].conteudo
+    assert "página=5" in contexto_enviado
+    assert "seção=Instalação" in contexto_enviado
+    assert "caminho=Guia > Instalação" in contexto_enviado
+
+
+def test_consulta_rag_deve_omitir_metadados_ausentes_no_contexto():
+    trecho = TrechoRecuperado(
+        trecho_id=8,
+        documento_id=5,
+        nome_arquivo="notas.txt",
+        conteudo="Conteúdo sem metadados.",
+        pontuacao_similaridade=0.5,
+    )
+
+    contexto = ServicoConsultaRAG._montar_contexto([trecho])
+
+    assert contexto.startswith("[Fonte 1 | notas.txt | similaridade=0.5000]")
+    assert "página=" not in contexto
+    assert "seção=" not in contexto

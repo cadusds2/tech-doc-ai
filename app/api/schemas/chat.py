@@ -12,6 +12,10 @@ class FonteUtilizada(BaseModel):
     nome_arquivo: str
     conteudo: str
     pontuacao_similaridade: float
+    pagina: int | None = None
+    secao: str | None = None
+    titulo_contexto: str | None = None
+    caminho_hierarquico: str | None = None
 
 
 class RespostaPergunta(BaseModel):

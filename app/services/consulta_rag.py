@@ -16,6 +16,10 @@ class TrechoRecuperado:
     nome_arquivo: str
     conteudo: str
     pontuacao_similaridade: float
+    pagina: int | None = None
+    secao: str | None = None
+    titulo_contexto: str | None = None
+    caminho_hierarquico: str | None = None
 
 
 @dataclass(frozen=True)
@@ -142,6 +146,10 @@ class ServicoRecuperacaoHibrida:
             nome_arquivo=trecho.nome_arquivo,
             conteudo=trecho.conteudo,
             pontuacao_similaridade=pontuacao_combinada,
+            pagina=trecho.pagina,
+            secao=trecho.secao,
+            titulo_contexto=trecho.titulo_contexto,
+            caminho_hierarquico=trecho.caminho_hierarquico,
         )
 
 
@@ -266,6 +274,10 @@ class ServicoConsultaRAG:
                 nome_arquivo=trecho.nome_arquivo,
                 conteudo=trecho.conteudo,
                 pontuacao_similaridade=round(trecho.pontuacao_similaridade, 4),
+                pagina=trecho.pagina,
+                secao=trecho.secao,
+                titulo_contexto=trecho.titulo_contexto,
+                caminho_hierarquico=trecho.caminho_hierarquico,
             )
             for trecho in trechos_recuperados
         ]
@@ -278,9 +290,23 @@ class ServicoConsultaRAG:
 
         blocos_contexto: list[str] = []
         for indice, trecho in enumerate(trechos_recuperados, start=1):
+            metadados = ServicoConsultaRAG._formatar_metadados_contexto(trecho)
             blocos_contexto.append(
-                f"[Fonte {indice} | {trecho.nome_arquivo} | similaridade={trecho.pontuacao_similaridade:.4f}]\n"
+                f"[Fonte {indice} | {trecho.nome_arquivo} | similaridade={trecho.pontuacao_similaridade:.4f}{metadados}]\n"
                 f"{trecho.conteudo}"
             )
 
         return "\n\n".join(blocos_contexto)
+
+    @staticmethod
+    def _formatar_metadados_contexto(trecho: TrechoRecuperado) -> str:
+        metadados: list[str] = []
+        if trecho.pagina is not None:
+            metadados.append(f"página={trecho.pagina}")
+        if trecho.secao:
+            metadados.append(f"seção={trecho.secao}")
+        if trecho.titulo_contexto and trecho.titulo_contexto != trecho.secao:
+            metadados.append(f"título={trecho.titulo_contexto}")
+        if trecho.caminho_hierarquico:
+            metadados.append(f"caminho={trecho.caminho_hierarquico}")
+        return " | " + " | ".join(metadados) if metadados else ""
