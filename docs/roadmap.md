@@ -128,3 +128,28 @@ O MVP será considerado concluído quando **todos** os critérios abaixo forem a
    - Guia de execução.
    - Guia de configuração.
    - Documento arquitetural e roadmap técnico atualizados.
+---
+
+## 8. Critérios de avaliação RAG
+
+A avaliação automatizada de RAG deve ser executada antes de mudanças grandes em recuperação, chunking, reranqueamento, prompt, geração de resposta ou contratos de fontes. O conjunto inicial fica em `tests/avaliacao_rag/` e usa documentos pequenos de referência para manter revisão rápida e reprodutível sem provedor externo real.
+
+### 8.1 Conjunto inicial de referência
+1. **Documentos pequenos**: manter arquivos Markdown curtos em `tests/avaliacao_rag/documentos_referencia/`, cada um cobrindo um comportamento específico do RAG.
+2. **Casos esperados**: registrar perguntas em `tests/avaliacao_rag/casos_avaliacao.json` com resposta esperada resumida, trechos esperados, termos obrigatórios, fonte esperada, quantidade mínima de fontes úteis e nível mínimo de similaridade aceitável.
+3. **Perguntas negativas**: incluir pelo menos um caso sem contexto suficiente para validar que o sistema não inventa resposta quando os documentos não cobrem a pergunta.
+
+### 8.2 Métricas mínimas obrigatórias
+1. **Presença da fonte correta**: a fonte esperada deve aparecer entre as fontes retornadas para perguntas respondíveis.
+2. **Quantidade de fontes úteis**: cada pergunta deve atingir a quantidade mínima de fontes com evidência direta nos trechos esperados.
+3. **Ausência de resposta sem contexto**: perguntas fora do escopo devem retornar zero fontes e mensagem explícita de contexto insuficiente.
+4. **Estabilidade da resposta**: a mesma pergunta deve produzir resposta textual e ordenação de fontes iguais em execuções repetidas.
+5. **Similaridade mínima**: a melhor fonte retornada deve atingir o valor `similaridade_minima` definido para o caso.
+6. **Termos obrigatórios**: a resposta deve conter os termos críticos definidos no caso de avaliação.
+
+### 8.3 Processo de revisão
+1. Executar `python -m tests.avaliacao_rag.avaliar_rag` localmente antes de abrir mudanças grandes no RAG.
+2. Executar `pytest tests/avaliacao_rag` para garantir que a avaliação continue integrada à suíte automatizada.
+3. Quando uma mudança alterar comportamento esperado, atualizar primeiro os documentos/casos de avaliação e explicar o motivo na revisão.
+4. Bloquear a revisão quando houver regressão em fonte correta, ausência de resposta sem contexto ou estabilidade, salvo decisão explícita documentada pelo time.
+

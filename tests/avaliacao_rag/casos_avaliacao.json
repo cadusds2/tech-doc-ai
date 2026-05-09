@@ -1,0 +1,57 @@
+[
+  {
+    "id": "ingestao_metadados",
+    "pergunta": "Quais metadados são adicionados durante a ingestão?",
+    "resposta_esperada_resumida": "Durante a ingestão, o texto é dividido em trechos e enriquecido com metadados de página, seção e caminho hierárquico.",
+    "trechos_esperados": [
+      "dividido em trechos",
+      "metadados de página, seção e caminho hierárquico"
+    ],
+    "termos_obrigatorios": ["página", "seção", "caminho hierárquico"],
+    "similaridade_minima": 0.18,
+    "fonte_esperada": "manual_ingestao.md",
+    "fontes_uteis_minimas": 1,
+    "deve_responder": true
+  },
+  {
+    "id": "politica_sem_contexto",
+    "pergunta": "O que o sistema deve fazer quando não houver contexto suficiente?",
+    "resposta_esperada_resumida": "O sistema deve informar que não encontrou contexto seguro e não deve inventar uma resposta.",
+    "trechos_esperados": [
+      "não tiver contexto suficiente",
+      "informar que não encontrou contexto seguro",
+      "em vez de inventar uma resposta"
+    ],
+    "termos_obrigatorios": ["contexto seguro", "inventar"],
+    "similaridade_minima": 0.2,
+    "fonte_esperada": "politica_fontes.md",
+    "fontes_uteis_minimas": 1,
+    "deve_responder": true
+  },
+  {
+    "id": "recuperacao_hibrida",
+    "pergunta": "Como a recuperação híbrida melhora perguntas técnicas?",
+    "resposta_esperada_resumida": "A recuperação híbrida combina busca vetorial e lexical para ampliar cobertura; a vetorial aproxima significados e a lexical favorece termos exatos.",
+    "trechos_esperados": [
+      "combina busca vetorial e busca lexical",
+      "melhorar a cobertura das perguntas técnicas",
+      "termos exatos"
+    ],
+    "termos_obrigatorios": ["busca vetorial", "busca lexical", "termos exatos"],
+    "similaridade_minima": 0.22,
+    "fonte_esperada": "guia_recuperacao.md",
+    "fontes_uteis_minimas": 1,
+    "deve_responder": true
+  },
+  {
+    "id": "sem_contexto_financeiro",
+    "pergunta": "Qual é a política de reembolso financeiro para clientes enterprise?",
+    "resposta_esperada_resumida": "Não deve responder porque os documentos de referência não contêm política de reembolso financeiro.",
+    "trechos_esperados": [],
+    "termos_obrigatorios": ["Não encontrei contexto suficiente"],
+    "similaridade_minima": 0.0,
+    "fonte_esperada": null,
+    "fontes_uteis_minimas": 0,
+    "deve_responder": false
+  }
+]
