@@ -91,6 +91,14 @@ Exemplo de resposta:
 
 Cria o registro do documento rapidamente e retorna `201 Created` com `status_processamento=recebido`. O parser, a geração de trechos e a indexação rodam fora da requisição principal por meio de `BackgroundTasks` do FastAPI.
 
+Limites e validações do upload:
+
+- Tamanho máximo padrão: 10 MiB por arquivo (`TAMANHO_MAXIMO_UPLOAD_BYTES=10485760`).
+- Tipos aceitos: `.txt`, `.md` e `.pdf`.
+- Nomes de arquivo são normalizados e sanitizados antes do processamento.
+- Uploads sem nome, vazios, com extensões inválidas ou com extensões suspeitas são rejeitados com mensagens genéricas.
+- Os logs registram apenas metadados resumidos, como nome normalizado, tamanho e motivo da rejeição, sem gravar o conteúdo do arquivo.
+
 Estados possíveis de processamento:
 
 1. `recebido`: arquivo aceito e processamento agendado.
