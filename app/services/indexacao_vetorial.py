@@ -1,6 +1,10 @@
+import logging
+
 from app.domain.documento import StatusProcessamentoDocumento
 from app.repositories.repositorio_documentos import RepositorioDocumentos
 from app.services.embeddings import ServicoEmbeddings
+
+logger = logging.getLogger(__name__)
 
 
 class ServicoIndexacaoVetorial:
@@ -14,7 +18,9 @@ class ServicoIndexacaoVetorial:
         self._servico_embeddings = servico_embeddings
         self._tamanho_lote_padrao = tamanho_lote_padrao
 
-    def indexar_trechos_pendentes(self, limite: int | None = None, documento_id: int | None = None) -> int:
+    def indexar_trechos_pendentes(
+        self, limite: int | None = None, documento_id: int | None = None
+    ) -> int:
         limite_consulta = limite or self._tamanho_lote_padrao
         total_indexado = 0
 
@@ -33,10 +39,21 @@ class ServicoIndexacaoVetorial:
 
             textos = [trecho.conteudo for trecho in trechos_pendentes]
             embeddings = self._servico_embeddings.gerar_embeddings(textos)
-            mapeamento_embeddings = {trecho.id: embeddings[indice] for indice, trecho in enumerate(trechos_pendentes)}
+            mapeamento_embeddings = {
+                trecho.id: embeddings[indice]
+                for indice, trecho in enumerate(trechos_pendentes)
+            }
 
             self._repositorio.atualizar_embeddings_trechos(mapeamento_embeddings)
             total_indexado += len(trechos_pendentes)
+            logger.info(
+                "Embeddings indexados para trechos.",
+                extra={
+                    "documento_id": documento_id,
+                    "quantidade_embeddings_indexados": len(trechos_pendentes),
+                    "total_embeddings_indexados": total_indexado,
+                },
+            )
 
             if documento_id is None:
                 return total_indexado

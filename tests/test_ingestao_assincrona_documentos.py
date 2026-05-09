@@ -191,7 +191,8 @@ def test_agendador_deve_repassar_fabrica_de_embeddings_sem_inicializar_no_agenda
     assert chamadas_fabrica == 0
     assert len(tarefas.chamadas) == 1
     _, argumentos = tarefas.chamadas[0]
-    assert argumentos[-1] is criar_embeddings
+    assert argumentos[-2] is criar_embeddings
+    assert isinstance(argumentos[-1], str)
 
 
 def test_processamento_background_nao_deve_inicializar_embeddings_com_pgvector_desabilitado(monkeypatch):

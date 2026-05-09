@@ -75,3 +75,19 @@ Os pesos são configuráveis por `PESO_BUSCA_VETORIAL` e `PESO_BUSCA_LEXICAL`. O
 ## Regra para novos módulos
 
 Novas funcionalidades devem respeitar a estrutura oficial. Não devem ser recriados diretórios em português para serviços, repositórios, rotas ou domínio.
+
+## Estratégia de logs e rastreabilidade
+
+1. Toda requisição HTTP passa pelo `MiddlewareIdentificadorRequisicao`, que reutiliza o cabeçalho `X-Request-ID` quando informado ou gera um identificador novo quando ele não existe.
+2. O identificador fica disponível em contexto local da execução por `contextvars`, é devolvido no cabeçalho `X-Request-ID` da resposta e é anexado aos registros pelo filtro de logging.
+3. Tarefas de processamento em background recebem uma cópia do identificador da requisição que as agendou, mantendo a correlação entre upload, processamento, chunking e indexação.
+4. As mensagens de log são padronizadas em português brasileiro e registram apenas metadados operacionais, como identificador do documento, nome do arquivo, quantidades, tempos e tipo do erro.
+5. Conteúdo completo de documentos, trechos recuperados e perguntas de usuários não deve ser registrado em logs para reduzir exposição de dados sensíveis.
+6. Pontos principais observados:
+   - recebimento e agendamento da ingestão;
+   - início e fim do processamento de ingestão;
+   - falhas de parser;
+   - quantidade de trechos gerados;
+   - quantidade de embeddings indexados;
+   - tempo da busca vetorial;
+   - quantidade de fontes retornadas pela consulta RAG.

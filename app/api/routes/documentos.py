@@ -1,11 +1,17 @@
+import logging
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
 from app.api.schemas.documentos import RespostaDocumentoIngerido
-from app.dependencias import obter_agendador_processamento_documentos, obter_servico_ingestao_documentos
+from app.dependencias import (
+    obter_agendador_processamento_documentos,
+    obter_servico_ingestao_documentos,
+)
 from app.services.ingestao_documentos import ServicoIngestaoDocumentos
 from app.services.processamento_documentos import AgendadorProcessamentoDocumentos
 
 roteador_documentos = APIRouter(prefix="/documentos", tags=["documentos"])
+logger = logging.getLogger(__name__)
 
 
 @roteador_documentos.post(
@@ -15,13 +21,25 @@ roteador_documentos = APIRouter(prefix="/documentos", tags=["documentos"])
 )
 async def ingerir_documento(
     arquivo: UploadFile = File(...),
-    servico_ingestao: ServicoIngestaoDocumentos = Depends(obter_servico_ingestao_documentos),
-    agendador_processamento: AgendadorProcessamentoDocumentos = Depends(obter_agendador_processamento_documentos),
+    servico_ingestao: ServicoIngestaoDocumentos = Depends(
+        obter_servico_ingestao_documentos
+    ),
+    agendador_processamento: AgendadorProcessamentoDocumentos = Depends(
+        obter_agendador_processamento_documentos
+    ),
 ) -> RespostaDocumentoIngerido:
     conteudo = await arquivo.read()
     nome_arquivo = arquivo.filename or "arquivo_sem_nome.txt"
+    logger.info(
+        "Documento recebido para ingestão.",
+        extra={"nome_arquivo": nome_arquivo, "tamanho_bytes": len(conteudo)},
+    )
     documento = servico_ingestao.registrar_documento_recebido(nome_arquivo, conteudo)
     agendador_processamento.agendar_processamento(documento.id, nome_arquivo, conteudo)
+    logger.info(
+        "Processamento de ingestão agendado.",
+        extra={"documento_id": documento.id, "nome_arquivo": nome_arquivo},
+    )
     return _criar_resposta_documento(documento)
 
 
@@ -31,11 +49,15 @@ async def ingerir_documento(
 )
 def consultar_documento(
     documento_id: int,
-    servico_ingestao: ServicoIngestaoDocumentos = Depends(obter_servico_ingestao_documentos),
+    servico_ingestao: ServicoIngestaoDocumentos = Depends(
+        obter_servico_ingestao_documentos
+    ),
 ) -> RespostaDocumentoIngerido:
     documento = servico_ingestao.buscar_documento(documento_id)
     if documento is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Documento não encontrado.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Documento não encontrado."
+        )
     return _criar_resposta_documento(documento)
 
 

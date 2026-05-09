@@ -13,7 +13,9 @@ class Configuracoes(BaseSettings):
     prefixo_api: str = ""
 
     nivel_log: str = "INFO"
-    formato_log: str = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+    formato_log: str = (
+        "%(asctime)s | %(levelname)s | %(name)s | %(identificador_requisicao)s | %(message)s"
+    )
 
     url_banco: str = "postgresql+psycopg://postgres:postgres@localhost:5432/tech_doc_ai"
     habilitar_pgvector: bool = True
