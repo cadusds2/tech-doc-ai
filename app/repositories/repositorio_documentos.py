@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 from sqlalchemy import case, literal, or_
 
+from app.domain.documento import StatusProcessamentoDocumento
 from app.infra.modelos_orm import DocumentoORM, TrechoORM
 from app.services.chunking import TrechoGerado
 
@@ -31,6 +32,7 @@ class RepositorioDocumentos:
         conteudo_extraido: str,
         tamanho_bytes: int,
         quantidade_caracteres: int,
+        status_processamento: StatusProcessamentoDocumento = StatusProcessamentoDocumento.TEXTO_EXTRAIDO,
     ) -> DocumentoORM:
         documento = DocumentoORM(
             nome_arquivo=nome_arquivo,
@@ -38,10 +40,71 @@ class RepositorioDocumentos:
             conteudo_extraido=conteudo_extraido,
             tamanho_bytes=tamanho_bytes,
             quantidade_caracteres=quantidade_caracteres,
+            status_processamento=status_processamento.value,
+            mensagem_erro_processamento=None,
         )
         self.sessao.add(documento)
         self.sessao.commit()
         self.sessao.refresh(documento)
+        return documento
+
+    def registrar_documento_recebido(
+        self,
+        nome_arquivo: str,
+        tipo_arquivo: str,
+        tamanho_bytes: int,
+    ) -> DocumentoORM:
+        documento = DocumentoORM(
+            nome_arquivo=nome_arquivo,
+            tipo_arquivo=tipo_arquivo,
+            conteudo_extraido="",
+            tamanho_bytes=tamanho_bytes,
+            quantidade_caracteres=0,
+            status_processamento=StatusProcessamentoDocumento.RECEBIDO.value,
+            mensagem_erro_processamento=None,
+        )
+        self.sessao.add(documento)
+        self.sessao.commit()
+        self.sessao.refresh(documento)
+        return documento
+
+    def buscar_documento_por_id(self, documento_id: int) -> DocumentoORM | None:
+        return self.sessao.get(DocumentoORM, documento_id)
+
+    def atualizar_status_documento(
+        self,
+        documento_id: int,
+        status_processamento: StatusProcessamentoDocumento,
+        mensagem_erro_processamento: str | None = None,
+    ) -> DocumentoORM:
+        documento = self._obter_documento_existente(documento_id)
+        documento.status_processamento = status_processamento.value
+        documento.mensagem_erro_processamento = mensagem_erro_processamento
+        self.sessao.commit()
+        self.sessao.refresh(documento)
+        return documento
+
+    def atualizar_texto_extraido_documento(self, documento_id: int, conteudo_extraido: str) -> DocumentoORM:
+        documento = self._obter_documento_existente(documento_id)
+        documento.conteudo_extraido = conteudo_extraido
+        documento.quantidade_caracteres = len(conteudo_extraido)
+        documento.status_processamento = StatusProcessamentoDocumento.TEXTO_EXTRAIDO.value
+        documento.mensagem_erro_processamento = None
+        self.sessao.commit()
+        self.sessao.refresh(documento)
+        return documento
+
+    def registrar_erro_processamento(self, documento_id: int, mensagem_erro: str) -> DocumentoORM:
+        return self.atualizar_status_documento(
+            documento_id=documento_id,
+            status_processamento=StatusProcessamentoDocumento.ERRO,
+            mensagem_erro_processamento=mensagem_erro[:500],
+        )
+
+    def _obter_documento_existente(self, documento_id: int) -> DocumentoORM:
+        documento = self.buscar_documento_por_id(documento_id)
+        if documento is None:
+            raise ValueError(f"Documento {documento_id} não encontrado.")
         return documento
 
     def salvar_trechos_documento(self, documento_id: int, trechos: list[TrechoGerado]) -> list[TrechoORM]:
@@ -73,6 +136,11 @@ class RepositorioDocumentos:
 
         for trecho in trechos_orm:
             self.sessao.refresh(trecho)
+
+        self.atualizar_status_documento(
+            documento_id=documento_id,
+            status_processamento=StatusProcessamentoDocumento.TRECHOS_GERADOS,
+        )
 
         return trechos_orm
 

@@ -1,3 +1,4 @@
+from app.domain.documento import StatusProcessamentoDocumento
 from app.repositories.repositorio_documentos import RepositorioDocumentos
 from app.services.embeddings import ServicoEmbeddings
 
@@ -27,6 +28,11 @@ class ServicoIndexacaoVetorial:
         mapeamento_embeddings = {trecho.id: embeddings[indice] for indice, trecho in enumerate(trechos_pendentes)}
 
         self._repositorio.atualizar_embeddings_trechos(mapeamento_embeddings)
+        if documento_id is not None:
+            self._repositorio.atualizar_status_documento(
+                documento_id=documento_id,
+                status_processamento=StatusProcessamentoDocumento.INDEXADO,
+            )
         return len(trechos_pendentes)
 
     def preparar_reindexacao_documento(self, documento_id: int) -> int:

@@ -21,6 +21,12 @@ _COLUNAS_ORIGEM_TRECHOS = {
     "caminho_hierarquico": "TEXT",
 }
 
+_COLUNAS_PROCESSAMENTO_DOCUMENTOS = {
+    "status_processamento": "VARCHAR(30) NOT NULL DEFAULT 'recebido'",
+    "mensagem_erro_processamento": "TEXT",
+    "atualizado_em": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+}
+
 
 def obter_sessao() -> Generator[Session, None, None]:
     sessao = FabricaSessao()
@@ -36,16 +42,24 @@ def garantir_extensao_pgvector() -> None:
 
 
 def _garantir_colunas_origem_trechos() -> None:
+    _garantir_colunas("trechos", _COLUNAS_ORIGEM_TRECHOS)
+
+
+def _garantir_colunas_processamento_documentos() -> None:
+    _garantir_colunas("documentos", _COLUNAS_PROCESSAMENTO_DOCUMENTOS)
+
+
+def _garantir_colunas(nome_tabela: str, colunas_necessarias: dict[str, str]) -> None:
     with engine.begin() as conexao:
         inspetor = inspect(conexao)
-        if not inspetor.has_table("trechos"):
+        if not inspetor.has_table(nome_tabela):
             return
 
-        colunas_existentes = {coluna["name"] for coluna in inspetor.get_columns("trechos")}
-        for nome_coluna, tipo_coluna in _COLUNAS_ORIGEM_TRECHOS.items():
+        colunas_existentes = {coluna["name"] for coluna in inspetor.get_columns(nome_tabela)}
+        for nome_coluna, tipo_coluna in colunas_necessarias.items():
             if nome_coluna in colunas_existentes:
                 continue
-            conexao.execute(text(f"ALTER TABLE trechos ADD COLUMN {nome_coluna} {tipo_coluna}"))
+            conexao.execute(text(f"ALTER TABLE {nome_tabela} ADD COLUMN {nome_coluna} {tipo_coluna}"))
 
 
 def inicializar_banco() -> None:
@@ -54,5 +68,6 @@ def inicializar_banco() -> None:
             garantir_extensao_pgvector()
         Base.metadata.create_all(bind=engine)
         _garantir_colunas_origem_trechos()
+        _garantir_colunas_processamento_documentos()
     except SQLAlchemyError as erro:
         logger.warning("Inicialização do banco indisponível no momento. A aplicação seguirá ativa. detalhe=%s", erro)

@@ -5,6 +5,7 @@ from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from app.core.config import obter_configuracoes
+from app.domain.documento import StatusProcessamentoDocumento
 
 config = obter_configuracoes()
 
@@ -22,7 +23,14 @@ class DocumentoORM(Base):
     tamanho_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     quantidade_caracteres: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     conteudo_extraido: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    status_processamento: Mapped[str] = mapped_column(
+        String(30), nullable=False, default=StatusProcessamentoDocumento.RECEBIDO.value, index=True
+    )
+    mensagem_erro_processamento: Mapped[str | None] = mapped_column(Text, nullable=True)
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    atualizado_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
 
     trechos: Mapped[list["TrechoORM"]] = relationship(back_populates="documento", cascade="all, delete-orphan")
 
