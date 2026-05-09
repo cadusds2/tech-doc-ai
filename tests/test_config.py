@@ -42,3 +42,9 @@ def test_configuracao_padrao_deve_habilitar_reranqueamento():
     configuracoes = Configuracoes(_env_file=None)
 
     assert configuracoes.habilitar_reranqueamento is True
+
+
+def test_configuracao_padrao_deve_definir_limite_upload():
+    configuracoes = Configuracoes(_env_file=None)
+
+    assert configuracoes.tamanho_maximo_upload_bytes == 10 * 1024 * 1024

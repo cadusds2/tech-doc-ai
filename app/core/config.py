@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -32,6 +33,7 @@ class Configuracoes(BaseSettings):
     peso_busca_vetorial: float = 0.7
     peso_busca_lexical: float = 0.3
     habilitar_reranqueamento: bool = True
+    tamanho_maximo_upload_bytes: int = Field(default=10 * 1024 * 1024, gt=0)
 
     provedor_modelo_linguagem: str = "heuristico"
     modelo_linguagem: str = "gpt-4.1-mini"
