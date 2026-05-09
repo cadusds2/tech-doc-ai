@@ -25,4 +25,4 @@ def test_configuracao_padrao_deve_manter_provedor_modelo_linguagem_local():
     assert configuracoes.chave_api_modelo_linguagem is None
     assert configuracoes.temperatura_modelo_linguagem == 0.2
     assert configuracoes.tempo_limite_modelo_linguagem == 30.0
-    assert configuracoes.url_base_modelo_linguagem == "https://api.openai.com/v1"
+    assert configuracoes.url_api_modelo_linguagem is None

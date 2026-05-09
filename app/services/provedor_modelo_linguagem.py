@@ -4,11 +4,13 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import urljoin
 
 from app.services.consulta_rag import MensagemModelo, ProvedorModeloLinguagem, ProvedorModeloLinguagemHeuristico
 
 logger = logging.getLogger(__name__)
+
+URL_API_OPENAI = "https://api.openai.com/v1/chat/completions"
+URL_API_GROQ = "https://api.groq.com/openai/v1/chat/completions"
 
 
 class ErroProvedorModeloLinguagem(RuntimeError):
@@ -22,7 +24,7 @@ class ConfiguracaoProvedorModeloLinguagem:
     chave_api: str | None
     temperatura: float
     tempo_limite: float
-    url_base: str
+    url_api: str | None = None
 
 
 class ProvedorModeloLinguagemOpenAICompativel:
@@ -32,7 +34,8 @@ class ProvedorModeloLinguagemOpenAICompativel:
         chave_api: str,
         temperatura: float = 0.2,
         tempo_limite: float = 30.0,
-        url_base: str = "https://api.openai.com/v1",
+        url_api: str = URL_API_OPENAI,
+        nome_provedor: str = "openai_compativel",
     ):
         if not chave_api or not chave_api.strip():
             raise ValueError("chave_api deve ser informada para o provedor externo de modelo de linguagem")
@@ -40,14 +43,21 @@ class ProvedorModeloLinguagemOpenAICompativel:
             raise ValueError("modelo deve ser informado para o provedor externo de modelo de linguagem")
         if tempo_limite <= 0:
             raise ValueError("tempo_limite deve ser maior que zero")
-        if not url_base or not url_base.strip():
-            raise ValueError("url_base deve ser informada para o provedor externo de modelo de linguagem")
 
         self._modelo = modelo
         self._chave_api = chave_api
         self._temperatura = temperatura
         self._tempo_limite = tempo_limite
-        self._url_api = self._montar_url_chat_completions(url_base)
+        self._url_api = url_api
+        self._nome_provedor = nome_provedor
+
+    @property
+    def url_api(self) -> str:
+        return self._url_api
+
+    @property
+    def nome_provedor(self) -> str:
+        return self._nome_provedor
 
     def gerar_texto(self, mensagens: list[MensagemModelo]) -> str:
         corpo = {
@@ -76,7 +86,7 @@ class ProvedorModeloLinguagemOpenAICompativel:
             logger.exception(
                 "falha_http_provedor_modelo_linguagem",
                 extra={
-                    "provedor_modelo_linguagem": "openai_compativel",
+                    "provedor_modelo_linguagem": self._nome_provedor,
                     "modelo_linguagem": self._modelo,
                     "status_http": erro.code,
                 },
@@ -86,7 +96,7 @@ class ProvedorModeloLinguagemOpenAICompativel:
             logger.exception(
                 "falha_comunicacao_provedor_modelo_linguagem",
                 extra={
-                    "provedor_modelo_linguagem": "openai_compativel",
+                    "provedor_modelo_linguagem": self._nome_provedor,
                     "modelo_linguagem": self._modelo,
                     "tipo_erro": type(erro).__name__,
                 },
@@ -94,10 +104,6 @@ class ProvedorModeloLinguagemOpenAICompativel:
             raise ErroProvedorModeloLinguagem("Falha ao consultar provedor de modelo de linguagem.") from erro
 
         return self._extrair_texto_resposta(dados_resposta)
-
-    @staticmethod
-    def _montar_url_chat_completions(url_base: str) -> str:
-        return urljoin(f"{url_base.strip().rstrip('/')}/", "chat/completions")
 
     @staticmethod
     def _normalizar_papel(papel: str) -> str:
@@ -125,12 +131,21 @@ def criar_provedor_modelo_linguagem(
     provedor = configuracao.provedor.strip().lower()
     if provedor in {"heuristico", "local"}:
         return ProvedorModeloLinguagemHeuristico()
-    if provedor in {"openai", "openai_compativel"}:
+    if provedor in {"openai", "openai_compativel", "groq"}:
         return ProvedorModeloLinguagemOpenAICompativel(
             modelo=configuracao.modelo,
             chave_api=configuracao.chave_api or "",
             temperatura=configuracao.temperatura,
             tempo_limite=configuracao.tempo_limite,
-            url_base=configuracao.url_base,
+            url_api=_resolver_url_api(provedor=provedor, url_api=configuracao.url_api),
+            nome_provedor=provedor,
         )
     raise ValueError(f"provedor_modelo_linguagem não suportado: {configuracao.provedor}")
+
+
+def _resolver_url_api(provedor: str, url_api: str | None) -> str:
+    if url_api and url_api.strip():
+        return url_api.strip()
+    if provedor == "groq":
+        return URL_API_GROQ
+    return URL_API_OPENAI
