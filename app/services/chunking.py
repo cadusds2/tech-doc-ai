@@ -122,6 +122,11 @@ class EstrategiaChunkingTamanhoComSobreposicao:
 
 
 class EstrategiaChunkingPorMedidaComSobreposicao:
+    _padrao_marcador_pagina = re.compile(
+        r"^\s*<!--\s*pagina:\s*(\d+)\s*-->\s*$",
+        re.IGNORECASE | re.MULTILINE,
+    )
+
     def __init__(
         self,
         tamanho_maximo: int,
@@ -141,7 +146,11 @@ class EstrategiaChunkingPorMedidaComSobreposicao:
     def gerar_trechos(self, texto: str) -> list[TrechoGerado]:
         if not texto.strip():
             return []
+        if self._padrao_marcador_pagina.search(texto):
+            return self._gerar_trechos_com_paginas(texto)
+        return self._gerar_trechos_sem_marcadores(texto)
 
+    def _gerar_trechos_sem_marcadores(self, texto: str) -> list[TrechoGerado]:
         unidades = self._medidor.gerar_unidades(texto)
         if not unidades:
             return []
@@ -186,6 +195,37 @@ class EstrategiaChunkingPorMedidaComSobreposicao:
                 proximo_inicio_unidade,
                 indice_inicio_unidade + 1,
             )
+
+        return trechos
+
+    def _gerar_trechos_com_paginas(self, texto: str) -> list[TrechoGerado]:
+        marcadores = list(self._padrao_marcador_pagina.finditer(texto))
+        trechos: list[TrechoGerado] = []
+
+        for indice_marcador, marcador in enumerate(marcadores):
+            inicio_conteudo = marcador.end()
+            fim_conteudo = (
+                marcadores[indice_marcador + 1].start()
+                if indice_marcador + 1 < len(marcadores)
+                else len(texto)
+            )
+            conteudo_pagina = texto[inicio_conteudo:fim_conteudo].strip()
+            if not conteudo_pagina:
+                continue
+
+            deslocamento = texto.index(conteudo_pagina, inicio_conteudo, fim_conteudo)
+            pagina = int(marcador.group(1))
+            for trecho_pagina in self._gerar_trechos_sem_marcadores(conteudo_pagina):
+                trechos.append(
+                    TrechoGerado(
+                        indice_trecho=len(trechos),
+                        conteudo=trecho_pagina.conteudo,
+                        indice_inicio=deslocamento + trecho_pagina.indice_inicio,
+                        indice_fim=deslocamento + trecho_pagina.indice_fim,
+                        tamanho_caracteres=trecho_pagina.tamanho_caracteres,
+                        pagina=pagina,
+                    )
+                )
 
         return trechos
 

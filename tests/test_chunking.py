@@ -206,6 +206,31 @@ def test_estrategia_por_tokens_deve_manter_sobreposicao_aproximada():
     assert palavras_por_trecho[1][-2:] == palavras_por_trecho[2][:2]
 
 
+def test_estrategia_por_tokens_deve_converter_marcadores_pdf_em_metadados():
+    texto = (
+        "<!-- pagina: 1 -->\n"
+        "alfa beta gamma delta epsilon\n\n"
+        "<!-- pagina: 2 -->\n"
+        "zeta eta theta iota kappa"
+    )
+    estrategia = EstrategiaChunkingPorMedidaComSobreposicao(
+        tamanho_maximo=3,
+        sobreposicao=0,
+        medidor=ContadorTokensAproximadoPorPalavras(),
+    )
+
+    trechos = estrategia.gerar_trechos(texto)
+
+    assert [trecho.pagina for trecho in trechos] == [1, 1, 2, 2]
+    assert [trecho.conteudo for trecho in trechos] == [
+        "alfa beta gamma",
+        "delta epsilon",
+        "zeta eta theta",
+        "iota kappa",
+    ]
+    assert all("<!-- pagina" not in trecho.conteudo for trecho in trechos)
+
+
 def test_estrategia_por_medida_deve_avancar_apos_unidade_sobredimensionada():
     estrategia = EstrategiaChunkingPorMedidaComSobreposicao(
         tamanho_maximo=50,
