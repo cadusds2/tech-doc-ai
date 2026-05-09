@@ -14,6 +14,10 @@ class TrechoSimilarEncontrado:
     nome_arquivo: str
     conteudo: str
     pontuacao_similaridade: float
+    pagina: int | None = None
+    secao: str | None = None
+    titulo_contexto: str | None = None
+    caminho_hierarquico: str | None = None
 
 
 class RepositorioDocumentos:
@@ -51,6 +55,10 @@ class RepositorioDocumentos:
                 tamanho_caracteres=trecho.tamanho_caracteres,
                 total_trechos_documento=total_trechos,
                 conteudo=trecho.conteudo,
+                pagina=trecho.pagina,
+                secao=trecho.secao,
+                titulo_contexto=trecho.titulo_contexto,
+                caminho_hierarquico=trecho.caminho_hierarquico,
                 embedding=None,
                 pontuacao_similaridade=None,
             )
@@ -110,6 +118,10 @@ class RepositorioDocumentos:
                 TrechoORM.documento_id.label("documento_id"),
                 DocumentoORM.nome_arquivo.label("nome_arquivo"),
                 TrechoORM.conteudo.label("conteudo"),
+                TrechoORM.pagina.label("pagina"),
+                TrechoORM.secao.label("secao"),
+                TrechoORM.titulo_contexto.label("titulo_contexto"),
+                TrechoORM.caminho_hierarquico.label("caminho_hierarquico"),
             )
             .join(DocumentoORM, DocumentoORM.id == TrechoORM.documento_id)
             .filter(or_(*filtros_termos))
@@ -128,6 +140,10 @@ class RepositorioDocumentos:
                     texto_busca=texto_busca,
                     termos_busca=termos_busca,
                 ),
+                pagina=registro.pagina,
+                secao=registro.secao,
+                titulo_contexto=registro.titulo_contexto,
+                caminho_hierarquico=registro.caminho_hierarquico,
             )
             for registro in consulta.all()
         ]
@@ -181,6 +197,10 @@ class RepositorioDocumentos:
                 TrechoORM.documento_id.label("documento_id"),
                 DocumentoORM.nome_arquivo.label("nome_arquivo"),
                 TrechoORM.conteudo.label("conteudo"),
+                TrechoORM.pagina.label("pagina"),
+                TrechoORM.secao.label("secao"),
+                TrechoORM.titulo_contexto.label("titulo_contexto"),
+                TrechoORM.caminho_hierarquico.label("caminho_hierarquico"),
                 (1 - distancia_cosseno).label("pontuacao_similaridade"),
             )
             .join(DocumentoORM, DocumentoORM.id == TrechoORM.documento_id)
@@ -196,6 +216,10 @@ class RepositorioDocumentos:
                 nome_arquivo=registro.nome_arquivo,
                 conteudo=registro.conteudo,
                 pontuacao_similaridade=float(registro.pontuacao_similaridade),
+                pagina=registro.pagina,
+                secao=registro.secao,
+                titulo_contexto=registro.titulo_contexto,
+                caminho_hierarquico=registro.caminho_hierarquico,
             )
             for registro in consulta.all()
         ]

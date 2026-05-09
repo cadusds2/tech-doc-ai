@@ -115,7 +115,11 @@ Exemplo de resposta:
       "documento_id": 3,
       "nome_arquivo": "arquitetura.md",
       "conteudo": "...",
-      "pontuacao_similaridade": 0.8731
+      "pontuacao_similaridade": 0.8731,
+      "pagina": 2,
+      "secao": "Recuperação híbrida",
+      "titulo_contexto": "Recuperação híbrida",
+      "caminho_hierarquico": "Arquitetura > Recuperação híbrida"
     }
   ]
 }
@@ -130,7 +134,7 @@ Exemplo de resposta:
 5. **Combinação**: o serviço remove duplicidades por `trecho_id` e calcula `pontuacao_combinada = peso_busca_vetorial * pontuacao_vetorial + peso_busca_lexical * pontuacao_lexical`.
 6. **Contexto**: `ServicoConsultaRAG` organiza os trechos combinados em um bloco textual com metadados de origem.
 7. **Resposta**: `GeradorRespostaContextual` produz uma síntese baseada no contexto recuperado e explicita limitações.
-8. **Fontes**: a API retorna a lista de fontes utilizadas, com documento, trecho, conteúdo e pontuação híbrida.
+8. **Fontes**: a API retorna a lista de fontes utilizadas, com documento, trecho, conteúdo, pontuação híbrida e metadados opcionais de origem (`pagina`, `secao`, `titulo_contexto` e `caminho_hierarquico`) quando extraídos de Markdown ou PDF.
 
 
 ## Configuração do provedor de modelo de linguagem

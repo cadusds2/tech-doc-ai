@@ -10,6 +10,10 @@ class TrechoGerado:
     indice_inicio: int
     indice_fim: int
     tamanho_caracteres: int
+    pagina: int | None = None
+    secao: str | None = None
+    titulo_contexto: str | None = None
+    caminho_hierarquico: str | None = None
 
 
 @dataclass(frozen=True)
@@ -46,6 +50,14 @@ class ContadorTokensAproximadoPorPalavras:
 
 @dataclass(frozen=True)
 class _UnidadeTexto:
+    indice_inicio: int
+    indice_fim: int
+
+
+@dataclass(frozen=True)
+class _TituloMarkdown:
+    nivel: int
+    titulo: str
     indice_inicio: int
     indice_fim: int
 
@@ -110,6 +122,11 @@ class EstrategiaChunkingTamanhoComSobreposicao:
 
 
 class EstrategiaChunkingPorMedidaComSobreposicao:
+    _padrao_marcador_pagina = re.compile(
+        r"^\s*<!--\s*pagina:\s*(\d+)\s*-->\s*$",
+        re.IGNORECASE | re.MULTILINE,
+    )
+
     def __init__(
         self,
         tamanho_maximo: int,
@@ -129,7 +146,11 @@ class EstrategiaChunkingPorMedidaComSobreposicao:
     def gerar_trechos(self, texto: str) -> list[TrechoGerado]:
         if not texto.strip():
             return []
+        if self._padrao_marcador_pagina.search(texto):
+            return self._gerar_trechos_com_paginas(texto)
+        return self._gerar_trechos_sem_marcadores(texto)
 
+    def _gerar_trechos_sem_marcadores(self, texto: str) -> list[TrechoGerado]:
         unidades = self._medidor.gerar_unidades(texto)
         if not unidades:
             return []
@@ -177,6 +198,37 @@ class EstrategiaChunkingPorMedidaComSobreposicao:
 
         return trechos
 
+    def _gerar_trechos_com_paginas(self, texto: str) -> list[TrechoGerado]:
+        marcadores = list(self._padrao_marcador_pagina.finditer(texto))
+        trechos: list[TrechoGerado] = []
+
+        for indice_marcador, marcador in enumerate(marcadores):
+            inicio_conteudo = marcador.end()
+            fim_conteudo = (
+                marcadores[indice_marcador + 1].start()
+                if indice_marcador + 1 < len(marcadores)
+                else len(texto)
+            )
+            conteudo_pagina = texto[inicio_conteudo:fim_conteudo].strip()
+            if not conteudo_pagina:
+                continue
+
+            deslocamento = texto.index(conteudo_pagina, inicio_conteudo, fim_conteudo)
+            pagina = int(marcador.group(1))
+            for trecho_pagina in self._gerar_trechos_sem_marcadores(conteudo_pagina):
+                trechos.append(
+                    TrechoGerado(
+                        indice_trecho=len(trechos),
+                        conteudo=trecho_pagina.conteudo,
+                        indice_inicio=deslocamento + trecho_pagina.indice_inicio,
+                        indice_fim=deslocamento + trecho_pagina.indice_fim,
+                        tamanho_caracteres=trecho_pagina.tamanho_caracteres,
+                        pagina=pagina,
+                    )
+                )
+
+        return trechos
+
     def _calcular_fim_unidade(
         self,
         unidades: list[UnidadeMedidaTrecho],
@@ -216,10 +268,14 @@ class EstrategiaChunkingPorMedidaComSobreposicao:
 
 
 class EstrategiaChunkingEstrutural:
-    _padrao_titulo_markdown = re.compile(r"^#{1,6}\s+\S")
+    _padrao_titulo_markdown = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
     _padrao_lista_markdown = re.compile(r"^\s*(?:[-*+]\s+|\d+[.)]\s+|[-*+]\s+\[[ xX]\]\s+)")
     _padrao_cerca_codigo = re.compile(r"^\s*(```+|~~~+)")
     _padrao_frase = re.compile(r"[^.!?\s][^.!?]*(?:[.!?]+[\"')\]]*)?")
+    _padrao_marcador_pagina = re.compile(
+        r"^\s*<!--\s*pagina:\s*(\d+)\s*-->\s*$",
+        re.IGNORECASE | re.MULTILINE,
+    )
 
     def __init__(self, tamanho_trecho: int, sobreposicao_trecho: int):
         _validar_parametros_chunking(
@@ -232,7 +288,11 @@ class EstrategiaChunkingEstrutural:
     def gerar_trechos(self, texto: str) -> list[TrechoGerado]:
         if not texto.strip():
             return []
+        if self._padrao_marcador_pagina.search(texto):
+            return self._gerar_trechos_com_paginas(texto)
+        return self._gerar_trechos_sem_marcadores(texto)
 
+    def _gerar_trechos_sem_marcadores(self, texto: str) -> list[TrechoGerado]:
         unidades = self._gerar_unidades(texto)
         if not unidades:
             return []
@@ -259,6 +319,40 @@ class EstrategiaChunkingEstrutural:
             if self._calcular_fim_trecho(inicio=proximo_inicio, unidades=unidades) <= fim:
                 proximo_inicio = fim
             inicio = self._avancar_espacos(texto=texto, inicio=proximo_inicio, fim=fim_texto)
+
+        return trechos
+
+    def _gerar_trechos_com_paginas(self, texto: str) -> list[TrechoGerado]:
+        marcadores = list(self._padrao_marcador_pagina.finditer(texto))
+        trechos: list[TrechoGerado] = []
+
+        for indice_marcador, marcador in enumerate(marcadores):
+            inicio_conteudo = marcador.end()
+            fim_conteudo = (
+                marcadores[indice_marcador + 1].start()
+                if indice_marcador + 1 < len(marcadores)
+                else len(texto)
+            )
+            conteudo_pagina = texto[inicio_conteudo:fim_conteudo].strip()
+            if not conteudo_pagina:
+                continue
+
+            deslocamento = texto.index(conteudo_pagina, inicio_conteudo, fim_conteudo)
+            pagina = int(marcador.group(1))
+            for trecho_pagina in self._gerar_trechos_sem_marcadores(conteudo_pagina):
+                trechos.append(
+                    TrechoGerado(
+                        indice_trecho=len(trechos),
+                        conteudo=trecho_pagina.conteudo,
+                        indice_inicio=deslocamento + trecho_pagina.indice_inicio,
+                        indice_fim=deslocamento + trecho_pagina.indice_fim,
+                        tamanho_caracteres=trecho_pagina.tamanho_caracteres,
+                        pagina=pagina,
+                        secao=trecho_pagina.secao,
+                        titulo_contexto=trecho_pagina.titulo_contexto,
+                        caminho_hierarquico=trecho_pagina.caminho_hierarquico,
+                    )
+                )
 
         return trechos
 
@@ -354,14 +448,80 @@ class EstrategiaChunkingEstrutural:
         if inicio_ajustado >= fim_ajustado:
             return None
 
-        conteudo = texto[inicio_ajustado:fim_ajustado]
+        metadados = self._extrair_metadados_trecho(
+            texto=texto,
+            inicio=inicio_ajustado,
+            fim=fim_ajustado,
+        )
+        conteudo = self._remover_marcadores_pagina(
+            texto[inicio_ajustado:fim_ajustado]
+        ).strip()
+        if not conteudo:
+            return None
+
         return TrechoGerado(
             indice_trecho=indice_trecho,
             conteudo=conteudo,
             indice_inicio=inicio_ajustado,
             indice_fim=fim_ajustado,
             tamanho_caracteres=len(conteudo),
+            pagina=metadados["pagina"],
+            secao=metadados["secao"],
+            titulo_contexto=metadados["titulo_contexto"],
+            caminho_hierarquico=metadados["caminho_hierarquico"],
         )
+
+    def _extrair_metadados_trecho(
+        self, texto: str, inicio: int, fim: int
+    ) -> dict[str, str | int | None]:
+        caminho = self._extrair_caminho_markdown(texto=texto, inicio=inicio, fim=fim)
+        return {
+            "pagina": self._extrair_pagina(texto=texto, inicio=inicio),
+            "secao": caminho[-1] if caminho else None,
+            "titulo_contexto": caminho[-1] if caminho else None,
+            "caminho_hierarquico": " > ".join(caminho) if caminho else None,
+        }
+
+    def _extrair_pagina(self, texto: str, inicio: int) -> int | None:
+        pagina: int | None = None
+        for marcador in self._padrao_marcador_pagina.finditer(texto):
+            if marcador.start() > inicio:
+                break
+            pagina = int(marcador.group(1))
+        return pagina
+
+    def _extrair_caminho_markdown(self, texto: str, inicio: int, fim: int) -> list[str]:
+        pilha_titulos: list[_TituloMarkdown] = []
+        for titulo in self._listar_titulos_markdown(texto):
+            if titulo.indice_inicio > fim:
+                break
+            if titulo.indice_fim <= inicio or (
+                inicio <= titulo.indice_inicio < fim
+            ):
+                pilha_titulos = [item for item in pilha_titulos if item.nivel < titulo.nivel]
+                pilha_titulos.append(titulo)
+        return [titulo.titulo for titulo in pilha_titulos]
+
+    def _listar_titulos_markdown(self, texto: str) -> list[_TituloMarkdown]:
+        titulos: list[_TituloMarkdown] = []
+        for inicio_linha, fim_linha, linha in self._linhas_com_indices(texto):
+            correspondencia = self._padrao_titulo_markdown.match(linha)
+            if correspondencia is None:
+                continue
+            titulo = correspondencia.group(2).strip().strip("#").strip()
+            if titulo:
+                titulos.append(
+                    _TituloMarkdown(
+                        nivel=len(correspondencia.group(1)),
+                        titulo=titulo,
+                        indice_inicio=inicio_linha,
+                        indice_fim=fim_linha,
+                    )
+                )
+        return titulos
+
+    def _remover_marcadores_pagina(self, texto: str) -> str:
+        return self._padrao_marcador_pagina.sub("", texto)
 
     def _linhas_com_indices(self, texto: str) -> list[tuple[int, int, str]]:
         linhas: list[tuple[int, int, str]] = []

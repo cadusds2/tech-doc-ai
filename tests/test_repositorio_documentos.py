@@ -49,3 +49,66 @@ def test_busca_lexical_deve_ordenar_candidatos_antes_de_limitar():
     assert len(resultado) == 1
     assert resultado[0].conteudo == "Trecho decisivo com alfa beta gamma em sequência exata."
     assert resultado[0].pontuacao_similaridade == 1.0
+
+
+def test_repositorio_deve_salvar_e_retornar_metadados_de_trechos_lexicais():
+    from app.services.chunking import TrechoGerado
+
+    sessao = _criar_sessao_sqlite()
+    documento = DocumentoORM(
+        nome_arquivo="manual.md",
+        tipo_arquivo="md",
+        conteudo_extraido="",
+        tamanho_bytes=0,
+        quantidade_caracteres=0,
+    )
+    sessao.add(documento)
+    sessao.commit()
+
+    repositorio = RepositorioDocumentos(sessao)
+    repositorio.salvar_trechos_documento(
+        documento_id=documento.id,
+        trechos=[
+            TrechoGerado(
+                indice_trecho=0,
+                conteudo="Instalação usa o pacote principal.",
+                indice_inicio=0,
+                indice_fim=34,
+                tamanho_caracteres=34,
+                pagina=3,
+                secao="Instalação",
+                titulo_contexto="Instalação",
+                caminho_hierarquico="Guia > Instalação",
+            )
+        ],
+    )
+
+    resultado = repositorio.buscar_trechos_por_texto("pacote principal", limite=1)
+
+    assert len(resultado) == 1
+    assert resultado[0].pagina == 3
+    assert resultado[0].secao == "Instalação"
+    assert resultado[0].titulo_contexto == "Instalação"
+    assert resultado[0].caminho_hierarquico == "Guia > Instalação"
+
+
+def test_repositorio_deve_manter_metadados_opcionais_ausentes():
+    sessao = _criar_sessao_sqlite()
+    documento = DocumentoORM(
+        nome_arquivo="notas.txt",
+        tipo_arquivo="txt",
+        conteudo_extraido="",
+        tamanho_bytes=0,
+        quantidade_caracteres=0,
+    )
+    sessao.add(documento)
+    sessao.flush()
+    _adicionar_trecho(sessao, documento.id, 0, "Trecho simples sem metadados extras.")
+    sessao.commit()
+
+    resultado = RepositorioDocumentos(sessao).buscar_trechos_por_texto("simples", limite=1)
+
+    assert resultado[0].pagina is None
+    assert resultado[0].secao is None
+    assert resultado[0].titulo_contexto is None
+    assert resultado[0].caminho_hierarquico is None

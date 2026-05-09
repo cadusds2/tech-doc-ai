@@ -38,6 +38,10 @@ class TrechoORM(Base):
     tamanho_caracteres: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     total_trechos_documento: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     conteudo: Mapped[str] = mapped_column(Text, nullable=False)
+    pagina: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    secao: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    titulo_contexto: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    caminho_hierarquico: Mapped[str | None] = mapped_column(Text, nullable=True)
     pontuacao_similaridade: Mapped[float | None] = mapped_column(Float, nullable=True)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(config.dimensao_embeddings), nullable=True)
 

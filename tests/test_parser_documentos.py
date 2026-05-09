@@ -38,7 +38,7 @@ def test_parser_deve_extrair_texto_de_pdf(monkeypatch):
 
     texto = parser.extrair_texto("manual.pdf", b"%PDF-simulado")
 
-    assert texto == "Primeira página\nSegunda página"
+    assert texto == "<!-- pagina: 1 -->\nPrimeira página\n\n<!-- pagina: 2 -->\nSegunda página"
 
 
 def test_parser_deve_rejeitar_tipo_invalido():

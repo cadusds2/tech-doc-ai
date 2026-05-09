@@ -1,7 +1,7 @@
 from collections.abc import Generator
 import logging
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -12,6 +12,14 @@ config = obter_configuracoes()
 engine = create_engine(config.url_banco, future=True)
 FabricaSessao = sessionmaker(bind=engine, autocommit=False, autoflush=False, class_=Session)
 logger = logging.getLogger(__name__)
+
+
+_COLUNAS_ORIGEM_TRECHOS = {
+    "pagina": "INTEGER",
+    "secao": "VARCHAR(255)",
+    "titulo_contexto": "VARCHAR(255)",
+    "caminho_hierarquico": "TEXT",
+}
 
 
 def obter_sessao() -> Generator[Session, None, None]:
@@ -27,10 +35,24 @@ def garantir_extensao_pgvector() -> None:
         conexao.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
 
 
+def _garantir_colunas_origem_trechos() -> None:
+    with engine.begin() as conexao:
+        inspetor = inspect(conexao)
+        if not inspetor.has_table("trechos"):
+            return
+
+        colunas_existentes = {coluna["name"] for coluna in inspetor.get_columns("trechos")}
+        for nome_coluna, tipo_coluna in _COLUNAS_ORIGEM_TRECHOS.items():
+            if nome_coluna in colunas_existentes:
+                continue
+            conexao.execute(text(f"ALTER TABLE trechos ADD COLUMN {nome_coluna} {tipo_coluna}"))
+
+
 def inicializar_banco() -> None:
     try:
         if config.habilitar_pgvector:
             garantir_extensao_pgvector()
         Base.metadata.create_all(bind=engine)
+        _garantir_colunas_origem_trechos()
     except SQLAlchemyError as erro:
         logger.warning("Inicialização do banco indisponível no momento. A aplicação seguirá ativa. detalhe=%s", erro)

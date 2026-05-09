@@ -34,8 +34,21 @@ class ServicoParserDocumentos:
 
         try:
             leitor = PdfReader(BytesIO(conteudo_bytes))
-            texto_paginas = [pagina.extract_text() or "" for pagina in leitor.pages]
+            texto_paginas = [
+                self._formatar_texto_pagina(
+                    numero_pagina=indice + 1,
+                    texto=pagina.extract_text() or "",
+                )
+                for indice, pagina in enumerate(leitor.pages)
+            ]
         except Exception as erro:  # noqa: BLE001
             raise ErroLeituraDocumento("Falha ao ler o arquivo PDF enviado.") from erro
 
-        return "\n".join(texto_paginas).strip()
+        return "\n\n".join(texto for texto in texto_paginas if texto).strip()
+
+    @staticmethod
+    def _formatar_texto_pagina(numero_pagina: int, texto: str) -> str:
+        texto_limpo = texto.strip()
+        if not texto_limpo:
+            return ""
+        return f"<!-- pagina: {numero_pagina} -->\n{texto_limpo}"

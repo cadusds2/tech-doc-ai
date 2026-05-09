@@ -206,6 +206,31 @@ def test_estrategia_por_tokens_deve_manter_sobreposicao_aproximada():
     assert palavras_por_trecho[1][-2:] == palavras_por_trecho[2][:2]
 
 
+def test_estrategia_por_tokens_deve_converter_marcadores_pdf_em_metadados():
+    texto = (
+        "<!-- pagina: 1 -->\n"
+        "alfa beta gamma delta epsilon\n\n"
+        "<!-- pagina: 2 -->\n"
+        "zeta eta theta iota kappa"
+    )
+    estrategia = EstrategiaChunkingPorMedidaComSobreposicao(
+        tamanho_maximo=3,
+        sobreposicao=0,
+        medidor=ContadorTokensAproximadoPorPalavras(),
+    )
+
+    trechos = estrategia.gerar_trechos(texto)
+
+    assert [trecho.pagina for trecho in trechos] == [1, 1, 2, 2]
+    assert [trecho.conteudo for trecho in trechos] == [
+        "alfa beta gamma",
+        "delta epsilon",
+        "zeta eta theta",
+        "iota kappa",
+    ]
+    assert all("<!-- pagina" not in trecho.conteudo for trecho in trechos)
+
+
 def test_estrategia_por_medida_deve_avancar_apos_unidade_sobredimensionada():
     estrategia = EstrategiaChunkingPorMedidaComSobreposicao(
         tamanho_maximo=50,
@@ -220,3 +245,30 @@ def test_estrategia_por_medida_deve_avancar_apos_unidade_sobredimensionada():
         "medio pequeno",
     ]
     assert [trecho.indice_inicio for trecho in trechos] == [0, 7]
+
+
+def test_estrategia_estrutural_deve_preencher_metadados_markdown():
+    texto = "# Guia\n\nIntrodução.\n\n## Instalação\n\nExecute o instalador."
+    estrategia = EstrategiaChunkingEstrutural(tamanho_trecho=30, sobreposicao_trecho=0)
+
+    trechos = estrategia.gerar_trechos(texto)
+
+    assert trechos[0].secao == "Guia"
+    assert trechos[0].titulo_contexto == "Guia"
+    assert trechos[0].caminho_hierarquico == "Guia"
+    assert trechos[-1].secao == "Instalação"
+    assert trechos[-1].titulo_contexto == "Instalação"
+    assert trechos[-1].caminho_hierarquico == "Guia > Instalação"
+    assert trechos[-1].pagina is None
+
+
+def test_estrategia_estrutural_deve_preencher_pagina_de_pdf_e_remover_marcador():
+    texto = "<!-- pagina: 1 -->\nPrimeira página com contexto.\n\n<!-- pagina: 2 -->\nSegunda página com detalhes."
+    estrategia = EstrategiaChunkingEstrutural(tamanho_trecho=45, sobreposicao_trecho=0)
+
+    trechos = estrategia.gerar_trechos(texto)
+
+    assert [trecho.pagina for trecho in trechos] == [1, 2]
+    assert "<!-- pagina" not in trechos[0].conteudo
+    assert "<!-- pagina" not in trechos[1].conteudo
+    assert trechos[0].secao is None
