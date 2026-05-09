@@ -89,7 +89,65 @@ Exemplo de resposta:
 
 ### `POST /documentos/ingestao`
 
-Ingere arquivo textual (`.txt`, `.md`, `.pdf`), extrai texto, gera trechos e executa indexação vetorial dos trechos ainda sem embedding quando `HABILITAR_PGVECTOR=true`.
+Cria o registro do documento rapidamente e retorna `201 Created` com `status_processamento=recebido`. O parser, a geração de trechos e a indexação rodam fora da requisição principal por meio de `BackgroundTasks` do FastAPI.
+
+Estados possíveis de processamento:
+
+1. `recebido`: arquivo aceito e processamento agendado.
+2. `texto_extraido`: parser concluiu a extração textual.
+3. `trechos_gerados`: chunking concluiu a geração de trechos persistidos.
+4. `indexado`: processamento concluído; quando `HABILITAR_PGVECTOR=true`, os embeddings foram persistidos.
+5. `erro`: houve falha no parser, chunking ou indexação, com resumo salvo em `mensagem_erro_processamento`.
+
+Exemplo de envio:
+
+```bash
+curl -F "arquivo=@docs/arquitetura.md" http://127.0.0.1:8000/documentos/ingestao
+```
+
+Exemplo de resposta inicial:
+
+```json
+{
+  "documento_id": 1,
+  "nome_arquivo": "arquitetura.md",
+  "tipo_arquivo": "md",
+  "tamanho_bytes": 2048,
+  "quantidade_caracteres": 0,
+  "status_processamento": "recebido",
+  "mensagem_erro_processamento": null,
+  "criado_em": "2026-05-09T12:00:00Z",
+  "atualizado_em": "2026-05-09T12:00:00Z"
+}
+```
+
+### `GET /documentos/{documento_id}`
+
+Consulta metadados e status atual de processamento do documento. Use esse endpoint para acompanhar a transição de `recebido` até `indexado` ou identificar falhas persistidas em `erro`.
+
+Exemplo:
+
+```bash
+curl http://127.0.0.1:8000/documentos/1
+```
+
+Exemplo de falha persistida:
+
+```json
+{
+  "documento_id": 1,
+  "nome_arquivo": "planilha.csv",
+  "tipo_arquivo": "csv",
+  "tamanho_bytes": 128,
+  "quantidade_caracteres": 0,
+  "status_processamento": "erro",
+  "mensagem_erro_processamento": "Tipo de arquivo não suportado: csv",
+  "criado_em": "2026-05-09T12:00:00Z",
+  "atualizado_em": "2026-05-09T12:00:02Z"
+}
+```
+
+A arquitetura já separa o agendamento (`AgendadorProcessamentoDocumentos`) do processamento (`ProcessadorDocumentos`), permitindo substituir o agendador baseado em `BackgroundTasks` por fila externa, como Redis, Celery ou equivalente, sem mudar o contrato HTTP.
 
 ### `POST /chat/perguntar`
 

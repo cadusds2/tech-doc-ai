@@ -1,10 +1,10 @@
 from functools import lru_cache
 
-from fastapi import Depends
+from fastapi import BackgroundTasks, Depends
 from sqlalchemy.orm import Session
 
 from app.core.config import obter_configuracoes
-from app.infra.banco import obter_sessao
+from app.infra.banco import FabricaSessao, obter_sessao
 from app.repositories.repositorio_documentos import RepositorioDocumentos
 from app.services.chunking import (
     ContadorTokensAproximadoPorPalavras,
@@ -20,6 +20,7 @@ from app.services.consulta_rag import (
 from app.services.reranqueamento import ReranqueadorHeuristicoTrechos
 from app.services.embeddings import ServicoEmbeddings, criar_provedor_embeddings
 from app.services.ingestao_documentos import ServicoIngestaoDocumentos
+from app.services.processamento_documentos import AgendadorBackgroundTasksFastAPI, AgendadorProcessamentoDocumentos
 from app.services.provedor_modelo_linguagem import (
     ConfiguracaoProvedorModeloLinguagem,
     criar_provedor_modelo_linguagem,
@@ -91,18 +92,33 @@ def obter_servico_ingestao_documentos(
     sessao: Session = Depends(obter_sessao),
 ) -> ServicoIngestaoDocumentos:
     configuracao = obter_configuracoes()
-    servico_indexacao: ServicoIndexacaoVetorial | None = None
-    if configuracao.habilitar_pgvector:
-        servico_indexacao = ServicoIndexacaoVetorial(
+
+    def criar_servico_indexacao() -> ServicoIndexacaoVetorial | None:
+        if not configuracao.habilitar_pgvector:
+            return None
+        return ServicoIndexacaoVetorial(
             repositorio=RepositorioDocumentos(sessao),
             servico_embeddings=obter_servico_embeddings(),
             tamanho_lote_padrao=configuracao.tamanho_lote_indexacao,
         )
+
     return ServicoIngestaoDocumentos(
         repositorio=RepositorioDocumentos(sessao),
         parser=obter_servico_parser_documentos(),
         servico_chunking=obter_servico_chunking_documentos(),
-        servico_indexacao=servico_indexacao,
+        fabrica_servico_indexacao=criar_servico_indexacao,
+    )
+
+
+def obter_agendador_processamento_documentos(
+    tarefas: BackgroundTasks,
+) -> AgendadorProcessamentoDocumentos:
+    return AgendadorBackgroundTasksFastAPI(
+        tarefas=tarefas,
+        fabrica_sessao=FabricaSessao,
+        parser=obter_servico_parser_documentos(),
+        servico_chunking=obter_servico_chunking_documentos(),
+        fabrica_servico_embeddings=obter_servico_embeddings,
     )
 
 
