@@ -130,6 +130,46 @@ Exemplo de resposta:
 5. **Resposta**: `GeradorRespostaContextual` produz uma síntese baseada no contexto recuperado e explicita limitações.
 6. **Fontes**: a API retorna a lista de fontes utilizadas, com documento, trecho, conteúdo e pontuação.
 
+
+## Configuração do provedor de modelo de linguagem
+
+Por padrão, o projeto usa `PROVEDOR_MODELO_LINGUAGEM=heuristico`, uma alternativa local e determinística para testes e desenvolvimento. Esse modo não chama APIs externas e mantém a consulta RAG funcional mesmo sem chave de API.
+
+Para usar OpenAI, configure as variáveis abaixo no `.env` ou no ambiente de execução:
+
+```env
+PROVEDOR_MODELO_LINGUAGEM=openai
+MODELO_LINGUAGEM=gpt-4.1-mini
+CHAVE_API_MODELO_LINGUAGEM=sua-chave-aqui
+TEMPERATURA_MODELO_LINGUAGEM=0.2
+TEMPO_LIMITE_MODELO_LINGUAGEM=30
+```
+
+Para usar Groq, crie uma chave no painel do Groq e configure:
+
+```env
+PROVEDOR_MODELO_LINGUAGEM=groq
+MODELO_LINGUAGEM=llama-3.3-70b-versatile
+CHAVE_API_MODELO_LINGUAGEM=sua-chave-da-groq
+TEMPERATURA_MODELO_LINGUAGEM=0.2
+TEMPO_LIMITE_MODELO_LINGUAGEM=30
+```
+
+O Groq possui plano gratuito para criação e testes, mas esse plano tem limites de requisições e tokens. Ao exceder os limites, o provedor pode retornar erro HTTP `429`; consulte os limites atuais no painel e na documentação oficial do Groq antes de usar em produção.
+
+Também é possível usar outro provedor compatível informando a URL completa da API:
+
+```env
+PROVEDOR_MODELO_LINGUAGEM=openai_compativel
+MODELO_LINGUAGEM=modelo-do-provedor
+CHAVE_API_MODELO_LINGUAGEM=sua-chave-aqui
+URL_API_MODELO_LINGUAGEM=https://provedor.exemplo/v1/chat/completions
+TEMPERATURA_MODELO_LINGUAGEM=0.2
+TEMPO_LIMITE_MODELO_LINGUAGEM=30
+```
+
+O prompt da consulta RAG exige resposta em português brasileiro e restringe a geração ao contexto recuperado. Se o provedor externo falhar, a aplicação registra logs estruturados e retorna uma mensagem segura sem expor detalhes internos ou a chave de API.
+
 ## Variáveis de ambiente
 
 As variáveis abaixo podem ser definidas em `.env` ou no ambiente de execução:
@@ -153,6 +193,12 @@ As variáveis abaixo podem ser definidas em `.env` ou no ambiente de execução:
 - `SOBREPOSICAO_TOKENS_TRECHO`: sobreposição aproximada em tokens entre trechos quando `USAR_CHUNKING_POR_TOKENS=true`.
 - `USAR_CHUNKING_POR_TOKENS`: alterna a estratégia de chunking para medição aproximada por tokens; por padrão, mantém o chunking estrutural por caracteres.
 - `LIMITE_BUSCA_PADRAO`: limite padrão para buscas semânticas.
+- `PROVEDOR_MODELO_LINGUAGEM`: seleciona o provedor de geração (`heuristico`, `local`, `openai`, `groq` ou `openai_compativel`).
+- `MODELO_LINGUAGEM`: modelo usado pelo provedor externo compatível com completação de conversa.
+- `CHAVE_API_MODELO_LINGUAGEM`: chave de API do provedor externo; obrigatória quando `PROVEDOR_MODELO_LINGUAGEM` for `openai`, `groq` ou `openai_compativel`.
+- `TEMPERATURA_MODELO_LINGUAGEM`: temperatura enviada ao provedor externo.
+- `TEMPO_LIMITE_MODELO_LINGUAGEM`: tempo limite, em segundos, para chamadas ao provedor externo.
+- `URL_API_MODELO_LINGUAGEM`: URL opcional para sobrescrever o endereço padrão do provedor externo, útil para provedores compatíveis.
 
 ## Testes
 

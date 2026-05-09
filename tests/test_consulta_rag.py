@@ -31,6 +31,11 @@ class _ProvedorModeloFalso:
         return "Resposta sintética baseada no contexto recuperado."
 
 
+class _ProvedorModeloComErroFalso:
+    def gerar_texto(self, mensagens):
+        raise RuntimeError("falha simulada")
+
+
 def test_recuperacao_semantica_deve_gerar_embedding_e_consultar_repositorio():
     repositorio = _RepositorioBuscaFalso(resultados=[])
     servico = ServicoRecuperacaoSemantica(
@@ -76,8 +81,12 @@ def test_consulta_rag_deve_retornar_resposta_com_fontes():
     assert len(resposta.fontes) == 2
     assert resposta.fontes[0].nome_arquivo == "manual.md"
     assert resposta.fontes[0].pontuacao_similaridade == 0.91
+    assert provedor_modelo.mensagens_recebidas[0].papel == "sistema"
+    assert "português brasileiro" in provedor_modelo.mensagens_recebidas[0].conteudo
+    assert "Use exclusivamente o contexto recuperado" in provedor_modelo.mensagens_recebidas[0].conteudo
     assert provedor_modelo.mensagens_recebidas[1].papel == "usuario"
     assert "Contexto recuperado" in provedor_modelo.mensagens_recebidas[1].conteudo
+    assert "use exclusivamente o contexto recuperado" in provedor_modelo.mensagens_recebidas[1].conteudo
 
 
 def test_gerador_deve_sinalizar_falta_de_contexto():
@@ -86,3 +95,17 @@ def test_gerador_deve_sinalizar_falta_de_contexto():
     resposta = gerador.gerar_resposta(pergunta="qualquer", contexto="", total_fontes=0)
 
     assert "Não encontrei contexto suficiente" in resposta
+
+
+def test_gerador_deve_retornar_resposta_segura_quando_provedor_falhar(caplog):
+    gerador = GeradorRespostaContextual(provedor_modelo_linguagem=_ProvedorModeloComErroFalso())
+
+    resposta = gerador.gerar_resposta(
+        pergunta="Explique RAG",
+        contexto="[Fonte 1 | manual.md | similaridade=0.9000]\nRAG usa contexto recuperado.",
+        total_fontes=1,
+    )
+
+    assert "Não foi possível gerar uma resposta com segurança" in resposta
+    assert "falha simulada" not in resposta
+    assert "falha_geracao_resposta_contextual" in caplog.text
