@@ -67,3 +67,13 @@ A consulta RAG fica dividida em três papéis:
 - `ServicoConsultaRAG`: orquestra recuperação, montagem de contexto, resposta e fontes.
 
 Essa separação permite substituir futuramente o provedor de modelo de linguagem sem alterar a rota HTTP ou a busca vetorial.
+
+## 8) Reranqueamento heurístico antes da geração
+
+A consulta RAG passa a aceitar um `ReranqueadorTrechos` entre a recuperação híbrida e a montagem do contexto. A primeira implementação, `ReranqueadorHeuristicoTrechos`, usa sinais simples e explicáveis:
+
+- presença de termos da pergunta no trecho;
+- tamanho útil do conteúdo, penalizando trechos vazios, curtos demais ou longos demais;
+- pontuação original da recuperação vetorial ou híbrida.
+
+O reranqueamento fica habilitado por padrão pela configuração `HABILITAR_RERANQUEAMENTO`, mas pode ser desligado para comparar resultados, investigar regressões ou preservar estritamente a ordenação original da recuperação. A interface foi isolada em `app/services/reranqueamento.py` para permitir a troca futura por um reranqueador baseado em modelo sem alterar a rota HTTP nem o contrato principal de `ServicoConsultaRAG`.

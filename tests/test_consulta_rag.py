@@ -43,6 +43,11 @@ class _ProvedorModeloComErroFalso:
         raise RuntimeError("falha simulada")
 
 
+class _ReranqueadorInvertidoFalso:
+    def reranquear(self, pergunta, trechos):
+        return list(reversed(trechos))
+
+
 def test_recuperacao_semantica_deve_gerar_embedding_e_consultar_repositorio():
     repositorio = _RepositorioBuscaFalso(resultados=[])
     servico = ServicoRecuperacaoSemantica(
@@ -52,7 +57,10 @@ def test_recuperacao_semantica_deve_gerar_embedding_e_consultar_repositorio():
 
     servico.recuperar_trechos(pergunta="o que é rag?", limite_fontes=2)
 
-    assert repositorio.ultima_busca == {"embedding_pergunta": [0.1, 0.2, 0.3], "limite": 2}
+    assert repositorio.ultima_busca == {
+        "embedding_pergunta": [0.1, 0.2, 0.3],
+        "limite": 2,
+    }
 
 
 def test_consulta_rag_deve_retornar_resposta_com_fontes():
@@ -79,7 +87,9 @@ def test_consulta_rag_deve_retornar_resposta_com_fontes():
     provedor_modelo = _ProvedorModeloFalso()
     servico = ServicoConsultaRAG(
         servico_recuperacao=recuperacao,
-        gerador_resposta=GeradorRespostaContextual(provedor_modelo_linguagem=provedor_modelo),
+        gerador_resposta=GeradorRespostaContextual(
+            provedor_modelo_linguagem=provedor_modelo
+        ),
     )
 
     resposta = servico.responder_pergunta(pergunta="Explique RAG", limite_fontes=2)
@@ -90,10 +100,55 @@ def test_consulta_rag_deve_retornar_resposta_com_fontes():
     assert resposta.fontes[0].pontuacao_similaridade == 0.91
     assert provedor_modelo.mensagens_recebidas[0].papel == "sistema"
     assert "português brasileiro" in provedor_modelo.mensagens_recebidas[0].conteudo
-    assert "Use exclusivamente o contexto recuperado" in provedor_modelo.mensagens_recebidas[0].conteudo
+    assert (
+        "Use exclusivamente o contexto recuperado"
+        in provedor_modelo.mensagens_recebidas[0].conteudo
+    )
     assert provedor_modelo.mensagens_recebidas[1].papel == "usuario"
     assert "Contexto recuperado" in provedor_modelo.mensagens_recebidas[1].conteudo
-    assert "use exclusivamente o contexto recuperado" in provedor_modelo.mensagens_recebidas[1].conteudo
+    assert (
+        "use exclusivamente o contexto recuperado"
+        in provedor_modelo.mensagens_recebidas[1].conteudo
+    )
+
+
+def test_consulta_rag_deve_reranquear_trechos_antes_de_montar_contexto():
+    resultados = [
+        TrechoRecuperado(
+            trecho_id=1,
+            documento_id=10,
+            nome_arquivo="manual.md",
+            conteudo="Primeiro trecho recuperado.",
+            pontuacao_similaridade=0.91,
+        ),
+        TrechoRecuperado(
+            trecho_id=2,
+            documento_id=10,
+            nome_arquivo="manual.md",
+            conteudo="Segundo trecho recuperado.",
+            pontuacao_similaridade=0.87,
+        ),
+    ]
+    recuperacao = ServicoRecuperacaoSemantica(
+        repositorio=_RepositorioBuscaFalso(resultados=resultados),
+        servico_embeddings=_ServicoEmbeddingsFalso(),
+    )
+    provedor_modelo = _ProvedorModeloFalso()
+    servico = ServicoConsultaRAG(
+        servico_recuperacao=recuperacao,
+        gerador_resposta=GeradorRespostaContextual(
+            provedor_modelo_linguagem=provedor_modelo
+        ),
+        reranqueador_trechos=_ReranqueadorInvertidoFalso(),
+    )
+
+    resposta = servico.responder_pergunta(pergunta="Explique RAG", limite_fontes=2)
+
+    assert [fonte.trecho_id for fonte in resposta.fontes] == [2, 1]
+    contexto_enviado = provedor_modelo.mensagens_recebidas[1].conteudo
+    assert contexto_enviado.index(
+        "Segundo trecho recuperado."
+    ) < contexto_enviado.index("Primeiro trecho recuperado.")
 
 
 def test_gerador_deve_sinalizar_falta_de_contexto():
@@ -105,7 +160,9 @@ def test_gerador_deve_sinalizar_falta_de_contexto():
 
 
 def test_gerador_deve_retornar_resposta_segura_quando_provedor_falhar(caplog):
-    gerador = GeradorRespostaContextual(provedor_modelo_linguagem=_ProvedorModeloComErroFalso())
+    gerador = GeradorRespostaContextual(
+        provedor_modelo_linguagem=_ProvedorModeloComErroFalso()
+    )
 
     resposta = gerador.gerar_resposta(
         pergunta="Explique RAG",
@@ -126,7 +183,9 @@ def test_recuperacao_hibrida_deve_recuperar_por_termo_exato_lexical():
         conteudo="O termo pgvector aparece explicitamente no glossário.",
         pontuacao_similaridade=1.0,
     )
-    repositorio = _RepositorioBuscaFalso(resultados=[], resultados_lexicais=[resultado_lexical])
+    repositorio = _RepositorioBuscaFalso(
+        resultados=[], resultados_lexicais=[resultado_lexical]
+    )
     servico = ServicoRecuperacaoHibrida(
         repositorio=repositorio,
         servico_embeddings=_ServicoEmbeddingsFalso(),
@@ -149,7 +208,9 @@ def test_recuperacao_hibrida_deve_manter_resultado_semantico_sem_termo_exato():
         conteudo="Recuperação aumentada por geração combina contexto e síntese.",
         pontuacao_similaridade=0.9,
     )
-    repositorio = _RepositorioBuscaFalso(resultados=[resultado_vetorial], resultados_lexicais=[])
+    repositorio = _RepositorioBuscaFalso(
+        resultados=[resultado_vetorial], resultados_lexicais=[]
+    )
     servico = ServicoRecuperacaoHibrida(
         repositorio=repositorio,
         servico_embeddings=_ServicoEmbeddingsFalso(),
@@ -157,9 +218,14 @@ def test_recuperacao_hibrida_deve_manter_resultado_semantico_sem_termo_exato():
         peso_busca_lexical=0.3,
     )
 
-    trechos = servico.recuperar_trechos(pergunta="como responder com documentos", limite_fontes=2)
+    trechos = servico.recuperar_trechos(
+        pergunta="como responder com documentos", limite_fontes=2
+    )
 
-    assert repositorio.ultima_busca == {"embedding_pergunta": [0.1, 0.2, 0.3], "limite": 2}
+    assert repositorio.ultima_busca == {
+        "embedding_pergunta": [0.1, 0.2, 0.3],
+        "limite": 2,
+    }
     assert [trecho.trecho_id for trecho in trechos] == [20]
     assert round(trechos[0].pontuacao_similaridade, 2) == 0.63
 

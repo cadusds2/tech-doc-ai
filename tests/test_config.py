@@ -6,7 +6,10 @@ def test_configuracao_padrao_deve_usar_banco_do_docker_compose(monkeypatch):
 
     configuracoes = Configuracoes(_env_file=None)
 
-    assert configuracoes.url_banco == "postgresql+psycopg://postgres:postgres@localhost:5432/tech_doc_ai"
+    assert (
+        configuracoes.url_banco
+        == "postgresql+psycopg://postgres:postgres@localhost:5432/tech_doc_ai"
+    )
 
 
 def test_configuracao_padrao_deve_manter_chunking_por_caracteres():
@@ -33,3 +36,9 @@ def test_configuracao_padrao_deve_definir_pesos_da_busca_hibrida():
 
     assert configuracoes.peso_busca_vetorial == 0.7
     assert configuracoes.peso_busca_lexical == 0.3
+
+
+def test_configuracao_padrao_deve_habilitar_reranqueamento():
+    configuracoes = Configuracoes(_env_file=None)
+
+    assert configuracoes.habilitar_reranqueamento is True
