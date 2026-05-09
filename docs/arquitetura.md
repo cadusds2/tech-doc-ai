@@ -62,11 +62,15 @@ Os diretórios abaixo foram removidos para evitar duplicidade de responsabilidad
 ## Fluxo de consulta RAG
 
 1. `POST /chat/perguntar` recebe a pergunta.
-2. `ServicoRecuperacaoSemantica` gera embedding da pergunta.
-3. `RepositorioDocumentos` busca trechos similares no `pgvector`.
-4. `ServicoConsultaRAG` monta o contexto com fontes.
-5. `GeradorRespostaContextual` gera a resposta final.
-6. A API retorna resposta e fontes utilizadas.
+2. `ServicoRecuperacaoHibrida` gera embedding da pergunta para a busca vetorial.
+3. `RepositorioDocumentos.buscar_trechos_similares` busca trechos similares no `pgvector`.
+4. `RepositorioDocumentos.buscar_trechos_por_texto` executa busca lexical em `TrechoORM.conteudo` com os termos da pergunta.
+5. `ServicoRecuperacaoHibrida` combina os resultados com a fórmula `peso_busca_vetorial * pontuacao_vetorial + peso_busca_lexical * pontuacao_lexical`, remove duplicidades por `trecho_id` e ordena pela pontuação final.
+6. `ServicoConsultaRAG` monta o contexto com fontes.
+7. `GeradorRespostaContextual` gera a resposta final.
+8. A API retorna resposta e fontes utilizadas com pontuação híbrida.
+
+Os pesos são configuráveis por `PESO_BUSCA_VETORIAL` e `PESO_BUSCA_LEXICAL`. Os valores padrão são `0.7` e `0.3`, respectivamente, para favorecer a busca semântica sem descartar correspondências exatas.
 
 ## Regra para novos módulos
 

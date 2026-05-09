@@ -1,4 +1,7 @@
+import re
 from dataclasses import dataclass
+
+from sqlalchemy import case, literal, or_
 
 from app.infra.modelos_orm import DocumentoORM, TrechoORM
 from app.services.chunking import TrechoGerado
@@ -90,6 +93,85 @@ class RepositorioDocumentos:
         )
         self.sessao.commit()
         return total_atualizado
+
+    def buscar_trechos_por_texto(self, texto_busca: str, limite: int) -> list[TrechoSimilarEncontrado]:
+        termos_busca = self._extrair_termos_busca(texto_busca)
+        if limite <= 0 or not termos_busca:
+            return []
+
+        filtros_termos = [TrechoORM.conteudo.ilike(f"%{termo}%") for termo in termos_busca]
+        criterios_ordenacao = self._criar_criterios_ordenacao_lexical(
+            texto_busca=texto_busca,
+            termos_busca=termos_busca,
+        )
+        consulta = (
+            self.sessao.query(
+                TrechoORM.id.label("trecho_id"),
+                TrechoORM.documento_id.label("documento_id"),
+                DocumentoORM.nome_arquivo.label("nome_arquivo"),
+                TrechoORM.conteudo.label("conteudo"),
+            )
+            .join(DocumentoORM, DocumentoORM.id == TrechoORM.documento_id)
+            .filter(or_(*filtros_termos))
+            .order_by(*criterios_ordenacao)
+            .limit(limite * 3)
+        )
+
+        resultados = [
+            TrechoSimilarEncontrado(
+                trecho_id=registro.trecho_id,
+                documento_id=registro.documento_id,
+                nome_arquivo=registro.nome_arquivo,
+                conteudo=registro.conteudo,
+                pontuacao_similaridade=self._calcular_pontuacao_lexical(
+                    conteudo=registro.conteudo,
+                    texto_busca=texto_busca,
+                    termos_busca=termos_busca,
+                ),
+            )
+            for registro in consulta.all()
+        ]
+        resultados.sort(key=lambda trecho: trecho.pontuacao_similaridade, reverse=True)
+        return resultados[:limite]
+
+    @staticmethod
+    def _criar_criterios_ordenacao_lexical(texto_busca: str, termos_busca: list[str]):
+        total_termos_encontrados = literal(0)
+        for termo in termos_busca:
+            total_termos_encontrados += case(
+                (TrechoORM.conteudo.ilike(f"%{termo}%"), 1),
+                else_=0,
+            )
+
+        texto_normalizado = texto_busca.strip()
+        frase_exata_encontrada = (
+            case(
+                (TrechoORM.conteudo.ilike(f"%{texto_normalizado}%"), 1),
+                else_=0,
+            )
+            if texto_normalizado
+            else literal(0)
+        )
+
+        return (
+            frase_exata_encontrada.desc(),
+            total_termos_encontrados.desc(),
+            TrechoORM.id.asc(),
+        )
+
+    @staticmethod
+    def _extrair_termos_busca(texto_busca: str) -> list[str]:
+        termos = re.findall(r"[\wÀ-ÿ]{3,}", texto_busca.lower())
+        return list(dict.fromkeys(termos))
+
+    @staticmethod
+    def _calcular_pontuacao_lexical(conteudo: str, texto_busca: str, termos_busca: list[str]) -> float:
+        conteudo_normalizado = conteudo.lower()
+        pergunta_normalizada = texto_busca.strip().lower()
+        termos_encontrados = sum(1 for termo in termos_busca if termo in conteudo_normalizado)
+        cobertura_termos = termos_encontrados / len(termos_busca)
+        bonus_frase_exata = 0.25 if pergunta_normalizada and pergunta_normalizada in conteudo_normalizado else 0.0
+        return min(1.0, cobertura_termos + bonus_frase_exata)
 
     def buscar_trechos_similares(self, embedding_pergunta: list[float], limite: int) -> list[TrechoSimilarEncontrado]:
         distancia_cosseno = TrechoORM.embedding.cosine_distance(embedding_pergunta)

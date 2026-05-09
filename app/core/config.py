@@ -27,6 +27,8 @@ class Configuracoes(BaseSettings):
     sobreposicao_tokens_trecho: int = 40
     usar_chunking_por_tokens: bool = False
     limite_busca_padrao: int = 4
+    peso_busca_vetorial: float = 0.7
+    peso_busca_lexical: float = 0.3
 
     provedor_modelo_linguagem: str = "heuristico"
     modelo_linguagem: str = "gpt-4.1-mini"
