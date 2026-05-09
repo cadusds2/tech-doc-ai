@@ -1,4 +1,5 @@
 import logging
+from time import perf_counter
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -104,12 +105,33 @@ class ServicoRecuperacaoHibrida:
     def _buscar_trechos_vetoriais(
         self, pergunta: str, limite_fontes: int
     ) -> list[TrechoRecuperado]:
+        inicio_busca = perf_counter()
         embeddings = self._servico_embeddings.gerar_embeddings([pergunta])
         if not embeddings:
+            logger.info(
+                "Busca vetorial concluída sem embedding para pergunta.",
+                extra={
+                    "tempo_busca_vetorial_ms": round(
+                        (perf_counter() - inicio_busca) * 1000, 2
+                    ),
+                    "quantidade_resultados_vetoriais": 0,
+                },
+            )
             return []
-        return self._repositorio.buscar_trechos_similares(
+        resultados = self._repositorio.buscar_trechos_similares(
             embedding_pergunta=embeddings[0], limite=limite_fontes
         )
+        logger.info(
+            "Busca vetorial concluída.",
+            extra={
+                "tempo_busca_vetorial_ms": round(
+                    (perf_counter() - inicio_busca) * 1000, 2
+                ),
+                "quantidade_resultados_vetoriais": len(resultados),
+                "limite_fontes": limite_fontes,
+            },
+        )
+        return resultados
 
     @staticmethod
     def _registrar_resultado(
@@ -190,8 +212,8 @@ class GeradorRespostaContextual:
                 mensagens
             ).strip()
         except Exception as erro:
-            logger.exception(
-                "falha_geracao_resposta_contextual",
+            logger.error(
+                "Falha ao gerar resposta contextual. evento=falha_geracao_resposta_contextual",
                 extra={
                     "total_fontes": total_fontes,
                     "tipo_erro": type(erro).__name__,
@@ -281,6 +303,13 @@ class ServicoConsultaRAG:
             )
             for trecho in trechos_recuperados
         ]
+        logger.info(
+            "Fontes retornadas para resposta.",
+            extra={
+                "quantidade_fontes_retornadas": len(fontes),
+                "limite_fontes": limite_fontes,
+            },
+        )
         return RespostaPergunta(resposta=resposta, fontes=fontes)
 
     @staticmethod
