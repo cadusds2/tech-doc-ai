@@ -38,7 +38,7 @@ Os diretórios legados em português (`app/servicos`, `app/repositorios`, `app/r
 | `app/rotas/documentos.py` | `app/api/routes/documentos.py` | Rota oficial `POST /documentos/ingestao` integrada ao serviço de ingestão. |
 | `app/rotas/perguntas.py` | `app/api/routes/chat.py` | Rota oficial `POST /chat/perguntar` com contrato orientado a chat e fontes. |
 | `app/dominio/modelos.py` | `app/domain/documento.py` e `app/api/schemas/*` | Entidade de domínio separada dos contratos HTTP. |
-| `app/configuracao.py` | `app/core/config.py` | Configuração centralizada em `core`, incluindo banco, API, embeddings, chunking e indexação. |
+| `app/configuracao.py` | `app/core/config.py` | Configuração centralizada em `core`; o módulo legado permanece apenas como compatibilidade temporária e reexporta a configuração oficial. |
 
 ## Pré-requisitos
 
@@ -244,35 +244,37 @@ O prompt da consulta RAG exige resposta em português brasileiro e restringe a g
 
 ## Variáveis de ambiente
 
-As variáveis abaixo podem ser definidas em `.env` ou no ambiente de execução:
+As variáveis abaixo podem ser definidas em `.env` ou no ambiente de execução. Elas correspondem diretamente aos campos reais de `app/core/config.py` e, por padrão, o banco local usa o nome `tech_doc_ai`, igual ao `docker-compose.yml`:
 
-- `NOME_APP`: nome exibido pela API.
-- `VERSAO_APP`: versão exibida pela API.
-- `AMBIENTE`: ambiente atual.
-- `HOST_API`: host sugerido para execução local.
-- `PORTA_API`: porta sugerida para execução local.
-- `PREFIXO_API`: prefixo opcional para todas as rotas.
-- `NIVEL_LOG`: nível de logging.
-- `FORMATO_LOG`: formato das mensagens de logging.
-- `URL_BANCO`: URL de conexão com PostgreSQL.
-- `HABILITAR_PGVECTOR`: habilita criação da extensão `vector` na inicialização e indexação durante ingestão.
-- `MODELO_EMBEDDINGS`: nome do modelo de embeddings quando `sentence-transformers` estiver instalado.
-- `DIMENSAO_EMBEDDINGS`: dimensão dos vetores armazenados no `pgvector`.
-- `TAMANHO_LOTE_INDEXACAO`: quantidade máxima de trechos processados por rotina.
-- `TAMANHO_TRECHO`: tamanho de trecho por caracteres na ingestão quando `USAR_CHUNKING_POR_TOKENS=false`.
-- `SOBREPOSICAO_TRECHO`: sobreposição por caracteres entre trechos quando `USAR_CHUNKING_POR_TOKENS=false`.
-- `TAMANHO_MAXIMO_TOKENS_TRECHO`: tamanho máximo aproximado de cada trecho em tokens quando `USAR_CHUNKING_POR_TOKENS=true`.
-- `SOBREPOSICAO_TOKENS_TRECHO`: sobreposição aproximada em tokens entre trechos quando `USAR_CHUNKING_POR_TOKENS=true`.
-- `USAR_CHUNKING_POR_TOKENS`: alterna a estratégia de chunking para medição aproximada por tokens; por padrão, mantém o chunking estrutural por caracteres.
-- `LIMITE_BUSCA_PADRAO`: limite padrão para buscas RAG.
-- `PESO_BUSCA_VETORIAL`: peso da pontuação vetorial na recuperação híbrida; padrão `0.7`.
-- `PESO_BUSCA_LEXICAL`: peso da pontuação lexical na recuperação híbrida; padrão `0.3`.
-- `PROVEDOR_MODELO_LINGUAGEM`: seleciona o provedor de geração (`heuristico`, `local`, `openai`, `groq` ou `openai_compativel`).
-- `MODELO_LINGUAGEM`: modelo usado pelo provedor externo compatível com completação de conversa.
-- `CHAVE_API_MODELO_LINGUAGEM`: chave de API do provedor externo; obrigatória quando `PROVEDOR_MODELO_LINGUAGEM` for `openai`, `groq` ou `openai_compativel`.
-- `TEMPERATURA_MODELO_LINGUAGEM`: temperatura enviada ao provedor externo.
-- `TEMPO_LIMITE_MODELO_LINGUAGEM`: tempo limite, em segundos, para chamadas ao provedor externo.
-- `URL_API_MODELO_LINGUAGEM`: URL opcional para sobrescrever o endereço padrão do provedor externo, útil para provedores compatíveis.
+- `NOME_APP`: nome exibido pela API. Padrão: `Tech Doc AI`.
+- `VERSAO_APP`: versão exibida pela API. Padrão: `0.1.0`.
+- `AMBIENTE`: ambiente atual. Padrão: `desenvolvimento`.
+- `HOST_API`: host sugerido para execução local. Padrão: `0.0.0.0`.
+- `PORTA_API`: porta sugerida para execução local. Padrão: `8000`.
+- `PREFIXO_API`: prefixo opcional para todas as rotas. Padrão: vazio.
+- `NIVEL_LOG`: nível de logging. Padrão: `INFO`.
+- `FORMATO_LOG`: formato das mensagens de logging. Padrão: inclui `identificador_requisicao`.
+- `URL_BANCO`: URL de conexão com PostgreSQL. Padrão: `postgresql+psycopg://postgres:postgres@localhost:5432/tech_doc_ai`.
+- `HABILITAR_PGVECTOR`: habilita criação da extensão `vector` na inicialização e indexação durante ingestão. Padrão: `true`.
+- `MODELO_EMBEDDINGS`: nome do modelo de embeddings quando `sentence-transformers` estiver instalado. Padrão: `sentence-transformers/all-MiniLM-L6-v2`.
+- `DIMENSAO_EMBEDDINGS`: dimensão dos vetores armazenados no `pgvector`. Padrão: `384`.
+- `TAMANHO_LOTE_INDEXACAO`: quantidade máxima de trechos processados por rotina. Padrão: `100`.
+- `TAMANHO_TRECHO`: tamanho de trecho por caracteres na ingestão quando `USAR_CHUNKING_POR_TOKENS=false`. Padrão: `800`.
+- `SOBREPOSICAO_TRECHO`: sobreposição por caracteres entre trechos quando `USAR_CHUNKING_POR_TOKENS=false`. Padrão: `120`.
+- `TAMANHO_MAXIMO_TOKENS_TRECHO`: tamanho máximo aproximado de cada trecho em tokens quando `USAR_CHUNKING_POR_TOKENS=true`. Padrão: `256`.
+- `SOBREPOSICAO_TOKENS_TRECHO`: sobreposição aproximada em tokens entre trechos quando `USAR_CHUNKING_POR_TOKENS=true`. Padrão: `40`.
+- `USAR_CHUNKING_POR_TOKENS`: alterna a estratégia de chunking para medição aproximada por tokens. Padrão: `false`.
+- `LIMITE_BUSCA_PADRAO`: limite padrão para buscas RAG. Padrão: `4`.
+- `PESO_BUSCA_VETORIAL`: peso da pontuação vetorial na recuperação híbrida. Padrão: `0.7`.
+- `PESO_BUSCA_LEXICAL`: peso da pontuação lexical na recuperação híbrida. Padrão: `0.3`.
+- `HABILITAR_RERANQUEAMENTO`: habilita reranqueamento heurístico antes da geração. Padrão: `true`.
+- `TAMANHO_MAXIMO_UPLOAD_BYTES`: limite máximo de upload por arquivo. Padrão: `10485760` (10 MiB).
+- `PROVEDOR_MODELO_LINGUAGEM`: seleciona o provedor de geração (`heuristico`, `local`, `openai`, `groq` ou `openai_compativel`). Padrão: `heuristico`.
+- `MODELO_LINGUAGEM`: modelo usado pelo provedor externo compatível com completação de conversa. Padrão: `gpt-4.1-mini`.
+- `CHAVE_API_MODELO_LINGUAGEM`: chave de API do provedor externo; obrigatória quando `PROVEDOR_MODELO_LINGUAGEM` for `openai`, `groq` ou `openai_compativel`. Padrão: não definida.
+- `TEMPERATURA_MODELO_LINGUAGEM`: temperatura enviada ao provedor externo. Padrão: `0.2`.
+- `TEMPO_LIMITE_MODELO_LINGUAGEM`: tempo limite, em segundos, para chamadas ao provedor externo. Padrão: `30.0`.
+- `URL_API_MODELO_LINGUAGEM`: URL opcional para sobrescrever o endereço padrão do provedor externo, útil para provedores compatíveis. Padrão: não definida.
 
 ## Testes
 

@@ -23,7 +23,9 @@ Foram removidos os diretórios `app/servicos`, `app/repositorios`, `app/rotas` e
 
 ## 4) Configuração centralizada
 
-Todas as configurações ficam em `app/core/config.py`, incluindo metadados da API, logging, banco de dados, embeddings, chunking e indexação. A duplicidade com `app/configuracao.py` foi eliminada.
+Todas as configurações ficam em `app/core/config.py`, incluindo metadados da API, logging, banco de dados, embeddings, chunking, indexação, upload, busca híbrida, reranqueamento e provedor de modelo de linguagem. O módulo `app/configuracao.py` permanece somente como compatibilidade temporária para consumidores legados e reexporta `Configuracoes` e `obter_configuracoes` do módulo oficial.
+
+A nomenclatura padrão do banco foi unificada em `tech_doc_ai` para evitar divergência entre configuração local, `docker-compose.yml` e documentação. Assim, `URL_BANCO` usa `postgresql+psycopg://postgres:postgres@localhost:5432/tech_doc_ai` por padrão, enquanto o serviço Docker aponta para `postgresql+psycopg://postgres:postgres@banco:5432/tech_doc_ai`.
 
 ## 5) PostgreSQL + pgvector como infraestrutura vetorial
 

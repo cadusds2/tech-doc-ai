@@ -29,13 +29,13 @@ app/
 
 ## Módulos legados removidos
 
-Os diretórios abaixo foram removidos para evitar duplicidade de responsabilidades e divergência de imports:
+Os itens legados abaixo foram removidos ou mantidos apenas como compatibilidade temporária para evitar duplicidade de responsabilidades e divergência de imports:
 
 - `app/servicos/`
 - `app/repositorios/`
 - `app/rotas/`
 - `app/dominio/`
-- `app/configuracao.py`
+- `app/configuracao.py` (compatibilidade temporária que reexporta `app/core/config.py`)
 
 ## Comparação de responsabilidades
 
@@ -48,7 +48,7 @@ Os diretórios abaixo foram removidos para evitar duplicidade de responsabilidad
 | Repositório | Salvamento de documento e trechos em uma única operação. | Persistência granular de metadados, trechos, embeddings, limpeza e busca semântica. |
 | Rotas | Rotas em `app/rotas` com contratos misturados ao domínio. | Rotas em `app/api/routes` e schemas em `app/api/schemas`. |
 | Domínio | Modelos HTTP e modelos de resposta no mesmo arquivo. | Modelo de domínio `DocumentoIngerido` separado dos schemas da API. |
-| Configuração | Configuração duplicada em `app/configuracao.py`. | Configuração única em `app/core/config.py`. |
+| Configuração | Configuração duplicada em `app/configuracao.py`. | Configuração única em `app/core/config.py`, com `app/configuracao.py` apenas como compatibilidade temporária. |
 
 ## Fluxo de ingestão
 
