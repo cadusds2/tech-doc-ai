@@ -8,6 +8,7 @@ from app.services.provedor_modelo_linguagem import (
     URL_API_OPENAI,
     ConfiguracaoProvedorModeloLinguagem,
     ProvedorModeloLinguagemOpenAICompativel,
+    USER_AGENT_HTTP_PADRAO,
     criar_provedor_modelo_linguagem,
 )
 
@@ -115,6 +116,7 @@ def test_provedor_groq_deve_enviar_requisicao_no_formato_compativel(monkeypatch)
     assert resposta == "Resposta do provedor."
     assert requisicoes[0]["requisicao"].full_url == URL_API_GROQ
     assert requisicoes[0]["tempo_limite"] == 12.0
+    assert requisicoes[0]["requisicao"].headers["User-agent"] == USER_AGENT_HTTP_PADRAO
     assert corpo["model"] == "llama-3.3-70b-versatile"
     assert corpo["temperature"] == 0.1
     assert corpo["messages"] == [

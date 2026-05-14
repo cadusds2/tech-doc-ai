@@ -2,8 +2,18 @@ from pydantic import BaseModel, Field
 
 
 class RequisicaoPergunta(BaseModel):
-    pergunta: str = Field(min_length=3, description="Pergunta do usuário.")
-    limite_fontes: int = Field(default=4, ge=1, le=10, description="Quantidade máxima de trechos recuperados.")
+    pergunta: str = Field(min_length=3, description="Pergunta do usuario.")
+    limite_fontes: int = Field(
+        default=4,
+        ge=1,
+        le=10,
+        description="Quantidade maxima de trechos recuperados.",
+    )
+    conversation_id: str | None = Field(
+        default=None,
+        min_length=1,
+        description="Identificador opcional da conversa para manter historico em memoria.",
+    )
 
 
 class FonteUtilizada(BaseModel):
@@ -21,3 +31,4 @@ class FonteUtilizada(BaseModel):
 class RespostaPergunta(BaseModel):
     resposta: str
     fontes: list[FonteUtilizada]
+    conversation_id: str

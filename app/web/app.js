@@ -1,4 +1,5 @@
 const selecionar = (seletor) => document.querySelector(seletor);
+const CHAVE_CONVERSA_CHAT = "tech-doc-ai-conversation-id";
 
 const elementos = {
   botaoVerificarSaude: selecionar("#botao-verificar-saude"),
@@ -18,6 +19,7 @@ const elementos = {
   mensagemExclusaoDocumento: selecionar("#mensagem-exclusao-documento"),
   saidaExclusaoDocumento: selecionar("#saida-exclusao-documento"),
   formularioChat: selecionar("#formulario-chat"),
+  botaoNovaConversa: selecionar("#botao-nova-conversa"),
   campoPergunta: selecionar("#campo-pergunta"),
   campoLimiteFontes: selecionar("#campo-limite-fontes"),
   mensagemChat: selecionar("#mensagem-chat"),
@@ -33,6 +35,31 @@ function atualizarMensagem(elemento, texto, tipo = "neutra") {
 
 function formatarJson(dados) {
   return JSON.stringify(dados, null, 2);
+}
+
+function gerarConversationId() {
+  if (window.crypto?.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+  return `conv-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function obterConversationIdAtual() {
+  const conversationIdSalvo = window.sessionStorage.getItem(CHAVE_CONVERSA_CHAT);
+  if (conversationIdSalvo) {
+    return conversationIdSalvo;
+  }
+  const novoConversationId = gerarConversationId();
+  window.sessionStorage.setItem(CHAVE_CONVERSA_CHAT, novoConversationId);
+  return novoConversationId;
+}
+
+function iniciarNovaConversa() {
+  window.sessionStorage.setItem(CHAVE_CONVERSA_CHAT, gerarConversationId());
+  elementos.respostaChat.textContent = "Sem resposta ainda.";
+  elementos.fontesChat.textContent = "Nenhuma fonte retornada.";
+  atualizarMensagem(elementos.mensagemChat, "Nova conversa iniciada. O historico anterior desta aba nao sera mais reutilizado.", "sucesso");
+  elementos.campoPergunta.focus();
 }
 
 async function lerRespostaJson(resposta) {
@@ -74,29 +101,78 @@ async function verificarSaude() {
 
 async function enviarDocumento(evento) {
   evento.preventDefault();
-  const arquivo = elementos.arquivoDocumento.files[0];
-  if (!arquivo) {
-    atualizarMensagem(elementos.mensagemIngestao, "Selecione um arquivo antes de enviar.", "erro");
+  const arquivos = Array.from(elementos.arquivoDocumento.files || []);
+  if (arquivos.length === 0) {
+    atualizarMensagem(elementos.mensagemIngestao, "Selecione ao menos um arquivo antes de enviar.", "erro");
     return;
   }
 
-  const dadosFormulario = new FormData();
-  dadosFormulario.append("arquivo", arquivo);
-  atualizarMensagem(elementos.mensagemIngestao, "Enviando documento para ingestão...");
+  elementos.formularioIngestao.querySelector("button[type='submit']").disabled = true;
+  atualizarMensagem(
+    elementos.mensagemIngestao,
+    `Enviando ${arquivos.length} arquivo(s) para ingestao...`,
+  );
+
+  const documentosIngeridos = [];
+  const falhas = [];
 
   try {
-    const dados = await requisitarJson("/documentos/ingestao", {
-      method: "POST",
-      body: dadosFormulario,
+    for (const arquivo of arquivos) {
+      const dadosFormulario = new FormData();
+      dadosFormulario.append("arquivo", arquivo);
+      try {
+        const dados = await requisitarJson("/documentos/ingestao", {
+          method: "POST",
+          body: dadosFormulario,
+        });
+        documentosIngeridos.push(dados);
+      } catch (erro) {
+        falhas.push({
+          nome_arquivo: arquivo.name,
+          erro: erro.message,
+        });
+      }
+    }
+
+    const ultimoDocumento = documentosIngeridos.at(-1);
+    if (ultimoDocumento) {
+      elementos.documentoIdAtual.textContent = ultimoDocumento.documento_id;
+      elementos.campoDocumentoId.value = ultimoDocumento.documento_id;
+      elementos.campoDocumentoIdExclusao.value = ultimoDocumento.documento_id;
+    }
+
+    elementos.saidaIngestao.textContent = formatarJson({
+      total_arquivos: arquivos.length,
+      documentos_ingeridos: documentosIngeridos,
+      falhas,
     });
-    elementos.documentoIdAtual.textContent = dados.documento_id;
-    elementos.campoDocumentoId.value = dados.documento_id;
-    elementos.campoDocumentoIdExclusao.value = dados.documento_id;
-    elementos.saidaIngestao.textContent = formatarJson(dados);
-    atualizarMensagem(elementos.mensagemIngestao, "Documento enviado com sucesso.", "sucesso");
-  } catch (erro) {
-    elementos.saidaIngestao.textContent = "";
-    atualizarMensagem(elementos.mensagemIngestao, `Erro na ingestão: ${erro.message}`, "erro");
+
+    if (falhas.length === 0) {
+      atualizarMensagem(
+        elementos.mensagemIngestao,
+        `${documentosIngeridos.length} arquivo(s) enviado(s) com sucesso.`,
+        "sucesso",
+      );
+      elementos.formularioIngestao.reset();
+      return;
+    }
+
+    if (documentosIngeridos.length > 0) {
+      atualizarMensagem(
+        elementos.mensagemIngestao,
+        `${documentosIngeridos.length} arquivo(s) enviado(s) com sucesso e ${falhas.length} falha(s) detectada(s).`,
+        "erro",
+      );
+      return;
+    }
+
+    atualizarMensagem(
+      elementos.mensagemIngestao,
+      `Nenhum arquivo foi enviado com sucesso. ${falhas.length} falha(s) detectada(s).`,
+      "erro",
+    );
+  } finally {
+    elementos.formularioIngestao.querySelector("button[type='submit']").disabled = false;
   }
 }
 
@@ -208,8 +284,15 @@ async function perguntarAoChat(evento) {
     const dados = await requisitarJson("/chat/perguntar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pergunta, limite_fontes: limiteFontes }),
+      body: JSON.stringify({
+        pergunta,
+        limite_fontes: limiteFontes,
+        conversation_id: obterConversationIdAtual(),
+      }),
     });
+    if (dados.conversation_id) {
+      window.sessionStorage.setItem(CHAVE_CONVERSA_CHAT, dados.conversation_id);
+    }
     elementos.respostaChat.textContent = dados.resposta;
     montarFontes(dados.fontes);
     atualizarMensagem(elementos.mensagemChat, "Resposta recebida com sucesso.", "sucesso");
@@ -225,3 +308,4 @@ elementos.formularioIngestao.addEventListener("submit", enviarDocumento);
 elementos.formularioStatusDocumento.addEventListener("submit", atualizarStatusDocumento);
 elementos.formularioExclusaoDocumento.addEventListener("submit", excluirDocumento);
 elementos.formularioChat.addEventListener("submit", perguntarAoChat);
+elementos.botaoNovaConversa.addEventListener("click", iniciarNovaConversa);

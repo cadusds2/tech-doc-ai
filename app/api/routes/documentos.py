@@ -1,6 +1,7 @@
 import logging
 import re
 import unicodedata
+from hashlib import sha256
 from pathlib import PurePosixPath
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
@@ -15,7 +16,10 @@ from app.dependencias import (
     obter_servico_ingestao_documentos,
 )
 from app.domain.documento import StatusProcessamentoDocumento
-from app.services.ingestao_documentos import ServicoIngestaoDocumentos
+from app.services.ingestao_documentos import (
+    ErroDocumentoDuplicado,
+    ServicoIngestaoDocumentos,
+)
 from app.services.parser_documentos import ServicoParserDocumentos
 from app.services.processamento_documentos import AgendadorProcessamentoDocumentos
 
@@ -69,7 +73,18 @@ async def ingerir_documento(
         "Documento recebido para ingestão.",
         extra={"nome_arquivo": nome_arquivo, "tamanho_bytes": len(conteudo)},
     )
-    documento = servico_ingestao.registrar_documento_recebido(nome_arquivo, conteudo)
+    hash_conteudo = sha256(conteudo).hexdigest()
+    try:
+        documento = servico_ingestao.registrar_documento_recebido(
+            nome_arquivo=nome_arquivo,
+            conteudo_bytes=conteudo,
+            hash_conteudo=hash_conteudo,
+        )
+    except ErroDocumentoDuplicado as erro:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(erro),
+        ) from erro
     agendador_processamento.agendar_processamento(documento.id, nome_arquivo, conteudo)
     logger.info(
         "Processamento de ingestão agendado.",

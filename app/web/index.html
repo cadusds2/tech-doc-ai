@@ -11,36 +11,36 @@
       <header class="cabecalho">
         <p class="rotulo">Tech Doc AI</p>
         <h1>Interface web da API RAG</h1>
-        <p>Envie documentos, acompanhe o processamento e faça perguntas ao chat em uma única tela.</p>
+        <p>Envie documentos, acompanhe o processamento e faca perguntas ao chat em uma unica tela.</p>
       </header>
 
-      <section class="grade-blocos" aria-label="Ações principais da interface">
+      <section class="grade-blocos" aria-label="Acoes principais da interface">
         <article class="bloco" id="bloco-saude">
           <div class="topo-bloco">
             <div>
               <p class="rotulo">Status da API</p>
-              <h2>Saúde do serviço</h2>
+              <h2>Saude do servico</h2>
             </div>
             <button type="button" id="botao-verificar-saude">Verificar</button>
           </div>
-          <p id="mensagem-saude" class="mensagem neutra">Clique em verificar para consultar o endpoint de saúde.</p>
+          <p id="mensagem-saude" class="mensagem neutra">Clique em verificar para consultar o endpoint de saude.</p>
           <pre id="saida-saude" class="saida" aria-live="polite"></pre>
         </article>
 
         <article class="bloco" id="bloco-ingestao">
           <div class="topo-bloco">
             <div>
-              <p class="rotulo">Ingestão de documento</p>
-              <h2>Enviar arquivo</h2>
+              <p class="rotulo">Ingestao de documento</p>
+              <h2>Enviar arquivos</h2>
             </div>
           </div>
           <form id="formulario-ingestao" class="formulario">
-            <label for="arquivo-documento">Selecione um arquivo .txt, .md ou .pdf</label>
-            <input id="arquivo-documento" name="arquivo" type="file" accept=".txt,.md,.pdf" required />
-            <button type="submit">Enviar documento</button>
+            <label for="arquivo-documento">Selecione um ou mais arquivos .txt, .md ou .pdf</label>
+            <input id="arquivo-documento" name="arquivo" type="file" accept=".txt,.md,.pdf" multiple required />
+            <button type="submit">Enviar arquivos</button>
           </form>
-          <p id="mensagem-ingestao" class="mensagem neutra">Nenhum documento enviado nesta sessão.</p>
-          <p class="destaque">Documento ID: <strong id="documento-id-atual">não informado</strong></p>
+          <p id="mensagem-ingestao" class="mensagem neutra">Nenhum documento enviado nesta sessao.</p>
+          <p class="destaque">Documento ID: <strong id="documento-id-atual">nao informado</strong></p>
           <pre id="saida-ingestao" class="saida" aria-live="polite"></pre>
         </article>
 
@@ -63,7 +63,7 @@
         <article class="bloco" id="bloco-exclusao-documento">
           <div class="topo-bloco">
             <div>
-              <p class="rotulo">Exclusão de documento</p>
+              <p class="rotulo">Exclusao de documento</p>
               <h2>Remover documento</h2>
             </div>
           </div>
@@ -86,11 +86,12 @@
           <form id="formulario-chat" class="formulario">
             <label for="campo-pergunta">Pergunta</label>
             <textarea id="campo-pergunta" name="pergunta" rows="5" minlength="3" placeholder="Digite sua pergunta sobre os documentos indexados" required></textarea>
-            <label for="campo-limite-fontes">Quantidade máxima de fontes</label>
+            <label for="campo-limite-fontes">Quantidade maxima de fontes</label>
             <input id="campo-limite-fontes" name="limite_fontes" type="number" min="1" max="10" value="4" />
             <button type="submit">Perguntar</button>
+            <button type="button" id="botao-nova-conversa">Nova conversa</button>
           </form>
-          <p id="mensagem-chat" class="mensagem neutra">A resposta e as fontes aparecerão aqui.</p>
+          <p id="mensagem-chat" class="mensagem neutra">A resposta e as fontes aparecerao aqui.</p>
           <section class="resultado-chat" aria-live="polite">
             <h3>Resposta</h3>
             <div id="resposta-chat" class="texto-resposta">Sem resposta ainda.</div>

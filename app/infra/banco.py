@@ -22,6 +22,7 @@ _COLUNAS_ORIGEM_TRECHOS = {
 }
 
 _COLUNAS_PROCESSAMENTO_DOCUMENTOS = {
+    "hash_conteudo": "VARCHAR(64)",
     "status_processamento": "VARCHAR(30) NOT NULL DEFAULT 'recebido'",
     "mensagem_erro_processamento": "TEXT",
     "atualizado_em": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",

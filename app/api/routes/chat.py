@@ -15,4 +15,5 @@ def perguntar(
     return servico_consulta.responder_pergunta(
         pergunta=requisicao.pergunta,
         limite_fontes=requisicao.limite_fontes,
+        conversation_id=requisicao.conversation_id,
     )

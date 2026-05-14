@@ -1,5 +1,6 @@
 from app.services.consulta_rag import (
     GeradorRespostaContextual,
+    MemoriaConversasEmMemoria,
     MensagemModelo,
     ServicoConsultaRAG,
     ServicoRecuperacaoHibrida,
@@ -25,7 +26,11 @@ class _RepositorioBuscaFalso:
 
 
 class _ServicoEmbeddingsFalso:
+    def __init__(self):
+        self.textos_recebidos = []
+
     def gerar_embeddings(self, textos):
+        self.textos_recebidos = list(textos)
         return [[0.1, 0.2, 0.3] for _ in textos]
 
 
@@ -35,7 +40,7 @@ class _ProvedorModeloFalso:
 
     def gerar_texto(self, mensagens):
         self.mensagens_recebidas = mensagens
-        return "Resposta sintética baseada no contexto recuperado."
+        return "Resposta sintetica baseada no contexto recuperado."
 
 
 class _ProvedorModeloComErroFalso:
@@ -50,33 +55,35 @@ class _ReranqueadorInvertidoFalso:
 
 def test_recuperacao_semantica_deve_gerar_embedding_e_consultar_repositorio():
     repositorio = _RepositorioBuscaFalso(resultados=[])
+    servico_embeddings = _ServicoEmbeddingsFalso()
     servico = ServicoRecuperacaoSemantica(
         repositorio=repositorio,
-        servico_embeddings=_ServicoEmbeddingsFalso(),
+        servico_embeddings=servico_embeddings,
     )
 
-    servico.recuperar_trechos(pergunta="o que é rag?", limite_fontes=2)
+    servico.recuperar_trechos(pergunta="o que e rag?", limite_fontes=2)
 
+    assert servico_embeddings.textos_recebidos == ["o que e rag?"]
     assert repositorio.ultima_busca == {
         "embedding_pergunta": [0.1, 0.2, 0.3],
         "limite": 2,
     }
 
 
-def test_consulta_rag_deve_retornar_resposta_com_fontes():
+def test_consulta_rag_deve_retornar_resposta_com_fontes_e_conversation_id():
     resultados = [
         TrechoRecuperado(
             trecho_id=1,
             documento_id=10,
             nome_arquivo="manual.md",
-            conteudo="RAG combina recuperação e geração.",
+            conteudo="RAG combina recuperacao e geracao.",
             pontuacao_similaridade=0.91,
         ),
         TrechoRecuperado(
             trecho_id=2,
             documento_id=10,
             nome_arquivo="manual.md",
-            conteudo="A busca vetorial encontra os trechos mais úteis.",
+            conteudo="A busca vetorial encontra os trechos mais uteis.",
             pontuacao_similaridade=0.87,
         ),
     ]
@@ -94,12 +101,13 @@ def test_consulta_rag_deve_retornar_resposta_com_fontes():
 
     resposta = servico.responder_pergunta(pergunta="Explique RAG", limite_fontes=2)
 
-    assert "sem garantia de precisão absoluta" in resposta.resposta
+    assert "sem garantia de precisao absoluta" in resposta.resposta
+    assert resposta.conversation_id
     assert len(resposta.fontes) == 2
     assert resposta.fontes[0].nome_arquivo == "manual.md"
     assert resposta.fontes[0].pontuacao_similaridade == 0.91
     assert provedor_modelo.mensagens_recebidas[0].papel == "sistema"
-    assert "português brasileiro" in provedor_modelo.mensagens_recebidas[0].conteudo
+    assert "portugues brasileiro" in provedor_modelo.mensagens_recebidas[0].conteudo
     assert (
         "Use exclusivamente o contexto recuperado"
         in provedor_modelo.mensagens_recebidas[0].conteudo
@@ -110,6 +118,60 @@ def test_consulta_rag_deve_retornar_resposta_com_fontes():
         "use exclusivamente o contexto recuperado"
         in provedor_modelo.mensagens_recebidas[1].conteudo
     )
+
+
+def test_consulta_rag_deve_reusar_historico_em_conversas_subsequentes():
+    resultados = [
+        TrechoRecuperado(
+            trecho_id=1,
+            documento_id=10,
+            nome_arquivo="manual.md",
+            conteudo="RAG combina recuperacao e geracao.",
+            pontuacao_similaridade=0.91,
+        )
+    ]
+    repositorio = _RepositorioBuscaFalso(resultados=resultados)
+    servico_embeddings = _ServicoEmbeddingsFalso()
+    recuperacao = ServicoRecuperacaoSemantica(
+        repositorio=repositorio,
+        servico_embeddings=servico_embeddings,
+    )
+    provedor_modelo = _ProvedorModeloFalso()
+    memoria_conversa = MemoriaConversasEmMemoria()
+    servico = ServicoConsultaRAG(
+        servico_recuperacao=recuperacao,
+        gerador_resposta=GeradorRespostaContextual(
+            provedor_modelo_linguagem=provedor_modelo
+        ),
+        memoria_conversa=memoria_conversa,
+    )
+
+    primeira_resposta = servico.responder_pergunta(
+        pergunta="O que e RAG?",
+        limite_fontes=1,
+        conversation_id="conv-1",
+    )
+    segunda_resposta = servico.responder_pergunta(
+        pergunta="E como isso ajuda no chat?",
+        limite_fontes=1,
+        conversation_id="conv-1",
+    )
+
+    assert primeira_resposta.conversation_id == "conv-1"
+    assert segunda_resposta.conversation_id == "conv-1"
+    assert (
+        "Pergunta atual: E como isso ajuda no chat?"
+        in servico_embeddings.textos_recebidos[0]
+    )
+    assert "O que e RAG?" in servico_embeddings.textos_recebidos[0]
+    assert [mensagem.papel for mensagem in provedor_modelo.mensagens_recebidas[:4]] == [
+        "sistema",
+        "usuario",
+        "assistente",
+        "usuario",
+    ]
+    assert provedor_modelo.mensagens_recebidas[1].conteudo == "O que e RAG?"
+    assert "Resposta sintetica" in provedor_modelo.mensagens_recebidas[2].conteudo
 
 
 def test_consulta_rag_deve_reranquear_trechos_antes_de_montar_contexto():
@@ -146,9 +208,9 @@ def test_consulta_rag_deve_reranquear_trechos_antes_de_montar_contexto():
 
     assert [fonte.trecho_id for fonte in resposta.fontes] == [2, 1]
     contexto_enviado = provedor_modelo.mensagens_recebidas[1].conteudo
-    assert contexto_enviado.index(
-        "Segundo trecho recuperado."
-    ) < contexto_enviado.index("Primeiro trecho recuperado.")
+    assert contexto_enviado.index("Segundo trecho recuperado.") < contexto_enviado.index(
+        "Primeiro trecho recuperado."
+    )
 
 
 def test_gerador_deve_sinalizar_falta_de_contexto():
@@ -156,7 +218,7 @@ def test_gerador_deve_sinalizar_falta_de_contexto():
 
     resposta = gerador.gerar_resposta(pergunta="qualquer", contexto="", total_fontes=0)
 
-    assert "Não encontrei contexto suficiente" in resposta
+    assert "Nao encontrei contexto suficiente" in resposta
 
 
 def test_gerador_deve_retornar_resposta_segura_quando_provedor_falhar(caplog):
@@ -170,7 +232,7 @@ def test_gerador_deve_retornar_resposta_segura_quando_provedor_falhar(caplog):
         total_fontes=1,
     )
 
-    assert "Não foi possível gerar uma resposta com segurança" in resposta
+    assert "Nao foi possivel gerar uma resposta com seguranca" in resposta
     assert "falha simulada" not in resposta
     assert "falha_geracao_resposta_contextual" in caplog.text
 
@@ -180,11 +242,12 @@ def test_recuperacao_hibrida_deve_recuperar_por_termo_exato_lexical():
         trecho_id=10,
         documento_id=1,
         nome_arquivo="glossario.md",
-        conteudo="O termo pgvector aparece explicitamente no glossário.",
+        conteudo="O termo pgvector aparece explicitamente no glossario.",
         pontuacao_similaridade=1.0,
     )
     repositorio = _RepositorioBuscaFalso(
-        resultados=[], resultados_lexicais=[resultado_lexical]
+        resultados=[],
+        resultados_lexicais=[resultado_lexical],
     )
     servico = ServicoRecuperacaoHibrida(
         repositorio=repositorio,
@@ -195,7 +258,10 @@ def test_recuperacao_hibrida_deve_recuperar_por_termo_exato_lexical():
 
     trechos = servico.recuperar_trechos(pergunta="pgvector", limite_fontes=3)
 
-    assert repositorio.ultima_busca_lexical == {"texto_busca": "pgvector", "limite": 3}
+    assert repositorio.ultima_busca_lexical == {
+        "texto_busca": "pgvector",
+        "limite": 3,
+    }
     assert [trecho.trecho_id for trecho in trechos] == [10]
     assert trechos[0].pontuacao_similaridade == 0.3
 
@@ -205,11 +271,12 @@ def test_recuperacao_hibrida_deve_manter_resultado_semantico_sem_termo_exato():
         trecho_id=20,
         documento_id=2,
         nome_arquivo="conceitos.md",
-        conteudo="Recuperação aumentada por geração combina contexto e síntese.",
+        conteudo="Recuperacao aumentada por geracao combina contexto e sintese.",
         pontuacao_similaridade=0.9,
     )
     repositorio = _RepositorioBuscaFalso(
-        resultados=[resultado_vetorial], resultados_lexicais=[]
+        resultados=[resultado_vetorial],
+        resultados_lexicais=[],
     )
     servico = ServicoRecuperacaoHibrida(
         repositorio=repositorio,
@@ -219,7 +286,8 @@ def test_recuperacao_hibrida_deve_manter_resultado_semantico_sem_termo_exato():
     )
 
     trechos = servico.recuperar_trechos(
-        pergunta="como responder com documentos", limite_fontes=2
+        pergunta="como responder com documentos",
+        limite_fontes=2,
     )
 
     assert repositorio.ultima_busca == {
@@ -235,28 +303,28 @@ def test_recuperacao_hibrida_deve_combinar_resultados_e_remover_duplicidades():
         trecho_id=30,
         documento_id=3,
         nome_arquivo="manual.md",
-        conteudo="RAG usa recuperação híbrida para montar contexto.",
+        conteudo="RAG usa recuperacao hibrida para montar contexto.",
         pontuacao_similaridade=0.8,
     )
     trecho_apenas_vetorial = TrechoRecuperado(
         trecho_id=31,
         documento_id=3,
         nome_arquivo="manual.md",
-        conteudo="Busca semântica aproxima significados relacionados.",
+        conteudo="Busca semantica aproxima significados relacionados.",
         pontuacao_similaridade=0.7,
     )
     trecho_compartilhado_lexical = TrechoRecuperado(
         trecho_id=30,
         documento_id=3,
         nome_arquivo="manual.md",
-        conteudo="RAG usa recuperação híbrida para montar contexto.",
+        conteudo="RAG usa recuperacao hibrida para montar contexto.",
         pontuacao_similaridade=1.0,
     )
     trecho_apenas_lexical = TrechoRecuperado(
         trecho_id=32,
         documento_id=4,
         nome_arquivo="faq.md",
-        conteudo="A expressão recuperação híbrida está documentada no FAQ.",
+        conteudo="A expressao recuperacao hibrida esta documentada no FAQ.",
         pontuacao_similaridade=0.9,
     )
     repositorio = _RepositorioBuscaFalso(
@@ -270,7 +338,10 @@ def test_recuperacao_hibrida_deve_combinar_resultados_e_remover_duplicidades():
         peso_busca_lexical=0.3,
     )
 
-    trechos = servico.recuperar_trechos(pergunta="recuperação híbrida", limite_fontes=3)
+    trechos = servico.recuperar_trechos(
+        pergunta="recuperacao hibrida",
+        limite_fontes=3,
+    )
 
     assert [trecho.trecho_id for trecho in trechos] == [30, 31, 32]
     assert round(trechos[0].pontuacao_similaridade, 2) == 0.86
@@ -284,12 +355,12 @@ def test_consulta_rag_deve_incluir_metadados_nas_fontes_e_no_contexto():
             trecho_id=7,
             documento_id=4,
             nome_arquivo="manual.pdf",
-            conteudo="Detalhes de instalação do agente.",
+            conteudo="Detalhes de instalacao do agente.",
             pontuacao_similaridade=0.93219,
             pagina=5,
-            secao="Instalação",
-            titulo_contexto="Instalação",
-            caminho_hierarquico="Guia > Instalação",
+            secao="Instalacao",
+            titulo_contexto="Instalacao",
+            caminho_hierarquico="Guia > Instalacao",
         )
     ]
     recuperacao = ServicoRecuperacaoSemantica(
@@ -299,20 +370,22 @@ def test_consulta_rag_deve_incluir_metadados_nas_fontes_e_no_contexto():
     provedor_modelo = _ProvedorModeloFalso()
     servico = ServicoConsultaRAG(
         servico_recuperacao=recuperacao,
-        gerador_resposta=GeradorRespostaContextual(provedor_modelo_linguagem=provedor_modelo),
+        gerador_resposta=GeradorRespostaContextual(
+            provedor_modelo_linguagem=provedor_modelo
+        ),
     )
 
     resposta = servico.responder_pergunta(pergunta="Como instalar?", limite_fontes=1)
 
     fonte = resposta.fontes[0]
     assert fonte.pagina == 5
-    assert fonte.secao == "Instalação"
-    assert fonte.titulo_contexto == "Instalação"
-    assert fonte.caminho_hierarquico == "Guia > Instalação"
+    assert fonte.secao == "Instalacao"
+    assert fonte.titulo_contexto == "Instalacao"
+    assert fonte.caminho_hierarquico == "Guia > Instalacao"
     contexto_enviado = provedor_modelo.mensagens_recebidas[1].conteudo
-    assert "página=5" in contexto_enviado
-    assert "seção=Instalação" in contexto_enviado
-    assert "caminho=Guia > Instalação" in contexto_enviado
+    assert "pagina=5" in contexto_enviado
+    assert "secao=Instalacao" in contexto_enviado
+    assert "caminho=Guia > Instalacao" in contexto_enviado
 
 
 def test_consulta_rag_deve_omitir_metadados_ausentes_no_contexto():
@@ -320,12 +393,12 @@ def test_consulta_rag_deve_omitir_metadados_ausentes_no_contexto():
         trecho_id=8,
         documento_id=5,
         nome_arquivo="notas.txt",
-        conteudo="Conteúdo sem metadados.",
+        conteudo="Conteudo sem metadados.",
         pontuacao_similaridade=0.5,
     )
 
     contexto = ServicoConsultaRAG._montar_contexto([trecho])
 
     assert contexto.startswith("[Fonte 1 | notas.txt | similaridade=0.5000]")
-    assert "página=" not in contexto
-    assert "seção=" not in contexto
+    assert "pagina=" not in contexto
+    assert "secao=" not in contexto

@@ -14,6 +14,7 @@ from app.services.chunking import (
 )
 from app.services.consulta_rag import (
     GeradorRespostaContextual,
+    MemoriaConversasEmMemoria,
     ServicoConsultaRAG,
     ServicoRecuperacaoHibrida,
 )
@@ -75,6 +76,11 @@ def obter_gerador_resposta_contextual() -> GeradorRespostaContextual:
         )
     )
     return GeradorRespostaContextual(provedor_modelo_linguagem=provedor)
+
+
+@lru_cache
+def obter_memoria_conversas() -> MemoriaConversasEmMemoria:
+    return MemoriaConversasEmMemoria()
 
 
 def obter_servico_indexacao_vetorial(
@@ -141,4 +147,5 @@ def obter_servico_consulta_rag(
         servico_recuperacao=servico_recuperacao,
         gerador_resposta=obter_gerador_resposta_contextual(),
         reranqueador_trechos=reranqueador_trechos,
+        memoria_conversa=obter_memoria_conversas(),
     )

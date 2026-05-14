@@ -51,11 +51,13 @@ class RepositorioDocumentos:
     def registrar_documento_recebido(
         self,
         nome_arquivo: str,
+        hash_conteudo: str | None,
         tipo_arquivo: str,
         tamanho_bytes: int,
     ) -> DocumentoORM:
         documento = DocumentoORM(
             nome_arquivo=nome_arquivo,
+            hash_conteudo=hash_conteudo,
             tipo_arquivo=tipo_arquivo,
             conteudo_extraido="",
             tamanho_bytes=tamanho_bytes,
@@ -67,6 +69,16 @@ class RepositorioDocumentos:
         self.sessao.commit()
         self.sessao.refresh(documento)
         return documento
+
+    def buscar_documento_por_hash_conteudo(
+        self, hash_conteudo: str
+    ) -> DocumentoORM | None:
+        return (
+            self.sessao.query(DocumentoORM)
+            .filter(DocumentoORM.hash_conteudo == hash_conteudo)
+            .order_by(DocumentoORM.id.asc())
+            .first()
+        )
 
     def buscar_documento_por_id(self, documento_id: int) -> DocumentoORM | None:
         return self.sessao.get(DocumentoORM, documento_id)

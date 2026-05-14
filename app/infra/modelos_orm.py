@@ -19,6 +19,7 @@ class DocumentoORM(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nome_arquivo: Mapped[str] = mapped_column(String(255), nullable=False)
+    hash_conteudo: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     tipo_arquivo: Mapped[str] = mapped_column(String(20), nullable=False)
     tamanho_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     quantidade_caracteres: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

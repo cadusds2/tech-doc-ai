@@ -14,6 +14,7 @@ from app.repositories.repositorio_documentos import RepositorioDocumentos
 from app.services import processamento_documentos
 from app.services.chunking import TrechoGerado
 from app.services.ingestao_documentos import ServicoIngestaoDocumentos
+from app.services.ingestao_documentos import ErroDocumentoDuplicado
 from app.services.processamento_documentos import (
     AgendadorBackgroundTasksFastAPI,
     ProcessadorDocumentos,
@@ -110,7 +111,12 @@ def test_processador_deve_atualizar_status_ate_indexado_sem_indexacao_vetorial()
     fabrica_sessao = _criar_fabrica_sessao_sqlite()
     sessao = fabrica_sessao()
     repositorio = RepositorioDocumentos(sessao)
-    documento = repositorio.registrar_documento_recebido("manual.txt", "txt", tamanho_bytes=8)
+    documento = repositorio.registrar_documento_recebido(
+        "manual.txt",
+        None,
+        "txt",
+        tamanho_bytes=8,
+    )
 
     ProcessadorDocumentos(
         repositorio=repositorio,
@@ -130,7 +136,12 @@ def test_processador_deve_persistir_erro_resumido_quando_parser_falhar():
     fabrica_sessao = _criar_fabrica_sessao_sqlite()
     sessao = fabrica_sessao()
     repositorio = RepositorioDocumentos(sessao)
-    documento = repositorio.registrar_documento_recebido("manual.txt", "txt", tamanho_bytes=8)
+    documento = repositorio.registrar_documento_recebido(
+        "manual.txt",
+        None,
+        "txt",
+        tamanho_bytes=8,
+    )
 
     ProcessadorDocumentos(
         repositorio=repositorio,
@@ -169,6 +180,32 @@ def test_dependencia_ingestao_nao_deve_inicializar_embeddings_ao_registrar_ou_bu
     assert documento_consultado.status_processamento == StatusProcessamentoDocumento.RECEBIDO
 
 
+def test_servico_ingestao_deve_rejeitar_duplicidade_por_hash():
+    fabrica_sessao = _criar_fabrica_sessao_sqlite()
+    sessao = fabrica_sessao()
+    servico = ServicoIngestaoDocumentos(
+        repositorio=RepositorioDocumentos(sessao),
+        parser=ParserFalso(),
+        servico_chunking=ChunkingFalso(),
+    )
+
+    servico.registrar_documento_recebido(
+        "manual.txt",
+        b"conteudo tecnico",
+        hash_conteudo="abc123",
+    )
+
+    try:
+        servico.registrar_documento_recebido(
+            "manual-copia.txt",
+            b"conteudo tecnico",
+            hash_conteudo="abc123",
+        )
+        assert False, "Era esperado erro de documento duplicado."
+    except ErroDocumentoDuplicado as erro:
+        assert erro.documento_id_existente == 1
+
+
 def test_agendador_deve_repassar_fabrica_de_embeddings_sem_inicializar_no_agendamento():
     tarefas = TarefasBackgroundFalsas()
     chamadas_fabrica = 0
@@ -200,6 +237,7 @@ def test_processamento_background_nao_deve_inicializar_embeddings_com_pgvector_d
     sessao = fabrica_sessao()
     documento = RepositorioDocumentos(sessao).registrar_documento_recebido(
         "manual.txt",
+        None,
         "txt",
         tamanho_bytes=8,
     )

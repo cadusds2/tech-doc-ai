@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 URL_API_OPENAI = "https://api.openai.com/v1/chat/completions"
 URL_API_GROQ = "https://api.groq.com/openai/v1/chat/completions"
+USER_AGENT_HTTP_PADRAO = "Mozilla/5.0"
 
 
 class ErroProvedorModeloLinguagem(RuntimeError):
@@ -75,6 +76,7 @@ class ProvedorModeloLinguagemOpenAICompativel:
             headers={
                 "Authorization": f"Bearer {self._chave_api}",
                 "Content-Type": "application/json",
+                "User-Agent": USER_AGENT_HTTP_PADRAO,
             },
             method="POST",
         )
