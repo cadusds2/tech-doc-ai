@@ -165,5 +165,5 @@ def inicializar_banco() -> None:
         Base.metadata.create_all(bind=engine)
         _garantir_colunas_origem_trechos()
         _garantir_colunas_processamento_documentos()
-    except SQLAlchemyError as erro:
+    except (SQLAlchemyError, OSError, UnicodeError) as erro:
         logger.warning("Inicialização do banco indisponível no momento. A aplicação seguirá ativa. detalhe=%s", erro)

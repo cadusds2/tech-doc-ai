@@ -1,10 +1,10 @@
 from datetime import datetime
-from enum import StrEnum
+from enum import Enum
 
 from pydantic import BaseModel
 
 
-class StatusProcessamentoDocumento(StrEnum):
+class StatusProcessamentoDocumento(str, Enum):
     RECEBIDO = "recebido"
     TEXTO_EXTRAIDO = "texto_extraido"
     TRECHOS_GERADOS = "trechos_gerados"
