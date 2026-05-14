@@ -1,14 +1,71 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from app.domain.documento import StatusProcessamentoDocumento
 from app.infra.modelos_orm import Base, DocumentoORM, TrechoORM
 from app.repositories.repositorio_documentos import RepositorioDocumentos
+from app.services.consulta_rag import ServicoRecuperacaoHibrida
+
+
+class _ServicoEmbeddingsFalso:
+    def gerar_embeddings(self, textos):
+        return [[0.1, 0.2, 0.3] for _ in textos]
+
+
+class _RepositorioDocumentosSemBuscaVetorial(RepositorioDocumentos):
+    def buscar_trechos_similares(self, embedding_pergunta, limite):
+        return []
+
+
+class _ConsultaFalsa:
+    def __init__(self):
+        self.filtros = []
+
+    def join(self, *args, **kwargs):
+        return self
+
+    def filter(self, *criterios):
+        self.filtros.extend(criterios)
+        return self
+
+    def order_by(self, *args, **kwargs):
+        return self
+
+    def limit(self, *args, **kwargs):
+        return self
+
+    def all(self):
+        return []
+
+
+class _SessaoFalsa:
+    def __init__(self):
+        self.consulta = _ConsultaFalsa()
+
+    def query(self, *args, **kwargs):
+        return self.consulta
 
 
 def _criar_sessao_sqlite():
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
+
+
+def _adicionar_documento(
+    sessao, nome_arquivo: str, status: StatusProcessamentoDocumento
+) -> DocumentoORM:
+    documento = DocumentoORM(
+        nome_arquivo=nome_arquivo,
+        tipo_arquivo="md",
+        conteudo_extraido="",
+        tamanho_bytes=0,
+        quantidade_caracteres=0,
+        status_processamento=status.value,
+    )
+    sessao.add(documento)
+    sessao.flush()
+    return documento
 
 
 def _adicionar_trecho(sessao, documento_id: int, indice: int, conteudo: str) -> None:
@@ -29,25 +86,31 @@ def _adicionar_trecho(sessao, documento_id: int, indice: int, conteudo: str) -> 
 
 def test_busca_lexical_deve_ordenar_candidatos_antes_de_limitar():
     sessao = _criar_sessao_sqlite()
-    documento = DocumentoORM(
-        nome_arquivo="manual.md",
-        tipo_arquivo="md",
-        conteudo_extraido="",
-        tamanho_bytes=0,
-        quantidade_caracteres=0,
+    documento = _adicionar_documento(
+        sessao, "manual.md", StatusProcessamentoDocumento.INDEXADO
     )
-    sessao.add(documento)
-    sessao.flush()
 
     for indice in range(4):
-        _adicionar_trecho(sessao, documento.id, indice, f"Trecho comum com alfa apenas {indice}.")
-    _adicionar_trecho(sessao, documento.id, 4, "Trecho decisivo com alfa beta gamma em sequência exata.")
+        _adicionar_trecho(
+            sessao, documento.id, indice, f"Trecho comum com alfa apenas {indice}."
+        )
+    _adicionar_trecho(
+        sessao,
+        documento.id,
+        4,
+        "Trecho decisivo com alfa beta gamma em sequência exata.",
+    )
     sessao.commit()
 
-    resultado = RepositorioDocumentos(sessao).buscar_trechos_por_texto("alfa beta gamma", limite=1)
+    resultado = RepositorioDocumentos(sessao).buscar_trechos_por_texto(
+        "alfa beta gamma", limite=1
+    )
 
     assert len(resultado) == 1
-    assert resultado[0].conteudo == "Trecho decisivo com alfa beta gamma em sequência exata."
+    assert (
+        resultado[0].conteudo
+        == "Trecho decisivo com alfa beta gamma em sequência exata."
+    )
     assert resultado[0].pontuacao_similaridade == 1.0
 
 
@@ -55,14 +118,9 @@ def test_repositorio_deve_salvar_e_retornar_metadados_de_trechos_lexicais():
     from app.services.chunking import TrechoGerado
 
     sessao = _criar_sessao_sqlite()
-    documento = DocumentoORM(
-        nome_arquivo="manual.md",
-        tipo_arquivo="md",
-        conteudo_extraido="",
-        tamanho_bytes=0,
-        quantidade_caracteres=0,
+    documento = _adicionar_documento(
+        sessao, "manual.md", StatusProcessamentoDocumento.TEXTO_EXTRAIDO
     )
-    sessao.add(documento)
     sessao.commit()
 
     repositorio = RepositorioDocumentos(sessao)
@@ -82,6 +140,9 @@ def test_repositorio_deve_salvar_e_retornar_metadados_de_trechos_lexicais():
             )
         ],
     )
+    repositorio.atualizar_status_documento(
+        documento.id, StatusProcessamentoDocumento.INDEXADO
+    )
 
     resultado = repositorio.buscar_trechos_por_texto("pacote principal", limite=1)
 
@@ -94,21 +155,93 @@ def test_repositorio_deve_salvar_e_retornar_metadados_de_trechos_lexicais():
 
 def test_repositorio_deve_manter_metadados_opcionais_ausentes():
     sessao = _criar_sessao_sqlite()
-    documento = DocumentoORM(
-        nome_arquivo="notas.txt",
-        tipo_arquivo="txt",
-        conteudo_extraido="",
-        tamanho_bytes=0,
-        quantidade_caracteres=0,
+    documento = _adicionar_documento(
+        sessao, "notas.txt", StatusProcessamentoDocumento.INDEXADO
     )
-    sessao.add(documento)
-    sessao.flush()
     _adicionar_trecho(sessao, documento.id, 0, "Trecho simples sem metadados extras.")
     sessao.commit()
 
-    resultado = RepositorioDocumentos(sessao).buscar_trechos_por_texto("simples", limite=1)
+    resultado = RepositorioDocumentos(sessao).buscar_trechos_por_texto(
+        "simples", limite=1
+    )
 
     assert resultado[0].pagina is None
     assert resultado[0].secao is None
     assert resultado[0].titulo_contexto is None
     assert resultado[0].caminho_hierarquico is None
+
+
+def test_busca_lexical_deve_recuperar_apenas_documento_indexado():
+    sessao = _criar_sessao_sqlite()
+    documentos = [
+        _adicionar_documento(
+            sessao, "indexado.md", StatusProcessamentoDocumento.INDEXADO
+        ),
+        _adicionar_documento(sessao, "erro.md", StatusProcessamentoDocumento.ERRO),
+        _adicionar_documento(
+            sessao, "recebido.md", StatusProcessamentoDocumento.RECEBIDO
+        ),
+        _adicionar_documento(
+            sessao, "trechos.md", StatusProcessamentoDocumento.TRECHOS_GERADOS
+        ),
+    ]
+    for indice, documento in enumerate(documentos):
+        _adicionar_trecho(
+            sessao,
+            documento.id,
+            indice,
+            f"Conteúdo rastreável para {documento.nome_arquivo}.",
+        )
+    sessao.commit()
+
+    resultado = RepositorioDocumentos(sessao).buscar_trechos_por_texto(
+        "rastreável", limite=10
+    )
+
+    assert [trecho.nome_arquivo for trecho in resultado] == ["indexado.md"]
+
+
+def test_busca_vetorial_deve_filtrar_apenas_documentos_indexados():
+    sessao = _SessaoFalsa()
+
+    RepositorioDocumentos(sessao).buscar_trechos_similares([0.1, 0.2, 0.3], limite=5)
+
+    assert any(
+        getattr(criterio.left, "name", None) == "status_processamento"
+        and criterio.right.value == StatusProcessamentoDocumento.INDEXADO.value
+        for criterio in sessao.consulta.filtros
+    )
+
+
+def test_recuperacao_hibrida_nao_deve_usar_fontes_de_documentos_nao_indexados():
+    sessao = _criar_sessao_sqlite()
+    documento_indexado = _adicionar_documento(
+        sessao, "fonte-indexada.md", StatusProcessamentoDocumento.INDEXADO
+    )
+    documento_nao_indexado = _adicionar_documento(
+        sessao,
+        "fonte-nao-indexada.md",
+        StatusProcessamentoDocumento.TRECHOS_GERADOS,
+    )
+    _adicionar_trecho(
+        sessao,
+        documento_indexado.id,
+        0,
+        "Recuperação híbrida usa somente fonte liberada.",
+    )
+    _adicionar_trecho(
+        sessao,
+        documento_nao_indexado.id,
+        1,
+        "Recuperação híbrida não deve usar esta fonte.",
+    )
+    sessao.commit()
+
+    servico = ServicoRecuperacaoHibrida(
+        repositorio=_RepositorioDocumentosSemBuscaVetorial(sessao),
+        servico_embeddings=_ServicoEmbeddingsFalso(),
+    )
+
+    resultado = servico.recuperar_trechos("recuperação híbrida fonte", limite_fontes=5)
+
+    assert [trecho.nome_arquivo for trecho in resultado] == ["fonte-indexada.md"]
