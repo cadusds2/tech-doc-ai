@@ -5,7 +5,10 @@ from app.repositories.repositorio_documentos import RepositorioDocumentos
 from app.services.chunking import ServicoChunkingDocumentos
 from app.services.indexacao_vetorial import ServicoIndexacaoVetorial
 from app.services.parser_documentos import ErroLeituraDocumento, ServicoParserDocumentos
-from app.services.processamento_documentos import ProcessadorDocumentos, extrair_extensao_arquivo
+from app.services.processamento_documentos import (
+    ProcessadorDocumentos,
+    extrair_extensao_arquivo,
+)
 
 
 class ServicoIngestaoDocumentos:
@@ -15,7 +18,9 @@ class ServicoIngestaoDocumentos:
         parser: ServicoParserDocumentos,
         servico_chunking: ServicoChunkingDocumentos,
         servico_indexacao: ServicoIndexacaoVetorial | None = None,
-        fabrica_servico_indexacao: Callable[[], ServicoIndexacaoVetorial | None] | None = None,
+        fabrica_servico_indexacao: (
+            Callable[[], ServicoIndexacaoVetorial | None] | None
+        ) = None,
     ):
         self._repositorio = repositorio
         self._parser = parser
@@ -23,7 +28,9 @@ class ServicoIngestaoDocumentos:
         self._servico_indexacao = servico_indexacao
         self._fabrica_servico_indexacao = fabrica_servico_indexacao
 
-    def registrar_documento_recebido(self, nome_arquivo: str, conteudo_bytes: bytes) -> DocumentoIngerido:
+    def registrar_documento_recebido(
+        self, nome_arquivo: str, conteudo_bytes: bytes
+    ) -> DocumentoIngerido:
         documento = self._repositorio.registrar_documento_recebido(
             nome_arquivo=nome_arquivo,
             tipo_arquivo=extrair_extensao_arquivo(nome_arquivo),
@@ -31,7 +38,9 @@ class ServicoIngestaoDocumentos:
         )
         return _criar_documento_ingerido(documento)
 
-    def ingerir_arquivo(self, nome_arquivo: str, conteudo_bytes: bytes) -> DocumentoIngerido:
+    def ingerir_arquivo(
+        self, nome_arquivo: str, conteudo_bytes: bytes
+    ) -> DocumentoIngerido:
         documento_recebido = self._repositorio.registrar_documento_recebido(
             nome_arquivo=nome_arquivo,
             tipo_arquivo=extrair_extensao_arquivo(nome_arquivo),
@@ -47,7 +56,9 @@ class ServicoIngestaoDocumentos:
             nome_arquivo=nome_arquivo,
             conteudo_bytes=conteudo_bytes,
         )
-        documento_processado = self._repositorio.buscar_documento_por_id(documento_recebido.id)
+        documento_processado = self._repositorio.buscar_documento_por_id(
+            documento_recebido.id
+        )
         if documento_processado is None:
             raise ErroLeituraDocumento("Documento não encontrado após processamento.")
         return _criar_documento_ingerido(documento_processado)
@@ -66,6 +77,9 @@ class ServicoIngestaoDocumentos:
             return None
         return _criar_documento_ingerido(documento)
 
+    def excluir_documento(self, documento_id: int) -> bool:
+        return self._repositorio.excluir_documento(documento_id)
+
 
 def _criar_documento_ingerido(documento) -> DocumentoIngerido:
     return DocumentoIngerido(
@@ -74,7 +88,9 @@ def _criar_documento_ingerido(documento) -> DocumentoIngerido:
         tipo_arquivo=documento.tipo_arquivo,
         tamanho_bytes=documento.tamanho_bytes,
         quantidade_caracteres=documento.quantidade_caracteres,
-        status_processamento=StatusProcessamentoDocumento(documento.status_processamento),
+        status_processamento=StatusProcessamentoDocumento(
+            documento.status_processamento
+        ),
         mensagem_erro_processamento=documento.mensagem_erro_processamento,
         criado_em=documento.criado_em,
         atualizado_em=documento.atualizado_em,

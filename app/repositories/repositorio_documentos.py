@@ -71,6 +71,18 @@ class RepositorioDocumentos:
     def buscar_documento_por_id(self, documento_id: int) -> DocumentoORM | None:
         return self.sessao.get(DocumentoORM, documento_id)
 
+    def excluir_documento(self, documento_id: int) -> bool:
+        documento = self.buscar_documento_por_id(documento_id)
+        if documento is None:
+            return False
+
+        self.sessao.query(TrechoORM).filter(
+            TrechoORM.documento_id == documento_id
+        ).delete(synchronize_session=False)
+        self.sessao.delete(documento)
+        self.sessao.commit()
+        return True
+
     def atualizar_status_documento(
         self,
         documento_id: int,
@@ -84,17 +96,23 @@ class RepositorioDocumentos:
         self.sessao.refresh(documento)
         return documento
 
-    def atualizar_texto_extraido_documento(self, documento_id: int, conteudo_extraido: str) -> DocumentoORM:
+    def atualizar_texto_extraido_documento(
+        self, documento_id: int, conteudo_extraido: str
+    ) -> DocumentoORM:
         documento = self._obter_documento_existente(documento_id)
         documento.conteudo_extraido = conteudo_extraido
         documento.quantidade_caracteres = len(conteudo_extraido)
-        documento.status_processamento = StatusProcessamentoDocumento.TEXTO_EXTRAIDO.value
+        documento.status_processamento = (
+            StatusProcessamentoDocumento.TEXTO_EXTRAIDO.value
+        )
         documento.mensagem_erro_processamento = None
         self.sessao.commit()
         self.sessao.refresh(documento)
         return documento
 
-    def registrar_erro_processamento(self, documento_id: int, mensagem_erro: str) -> DocumentoORM:
+    def registrar_erro_processamento(
+        self, documento_id: int, mensagem_erro: str
+    ) -> DocumentoORM:
         return self.atualizar_status_documento(
             documento_id=documento_id,
             status_processamento=StatusProcessamentoDocumento.ERRO,
@@ -107,7 +125,9 @@ class RepositorioDocumentos:
             raise ValueError(f"Documento {documento_id} não encontrado.")
         return documento
 
-    def salvar_trechos_documento(self, documento_id: int, trechos: list[TrechoGerado]) -> list[TrechoORM]:
+    def salvar_trechos_documento(
+        self, documento_id: int, trechos: list[TrechoGerado]
+    ) -> list[TrechoORM]:
         total_trechos = len(trechos)
         trechos_orm = [
             TrechoORM(
@@ -144,18 +164,28 @@ class RepositorioDocumentos:
 
         return trechos_orm
 
-    def listar_trechos_sem_embedding(self, limite: int = 100, documento_id: int | None = None) -> list[TrechoORM]:
-        consulta = self.sessao.query(TrechoORM).filter(TrechoORM.embedding.is_(None)).order_by(TrechoORM.id.asc())
+    def listar_trechos_sem_embedding(
+        self, limite: int = 100, documento_id: int | None = None
+    ) -> list[TrechoORM]:
+        consulta = (
+            self.sessao.query(TrechoORM)
+            .filter(TrechoORM.embedding.is_(None))
+            .order_by(TrechoORM.id.asc())
+        )
         if documento_id is not None:
             consulta = consulta.filter(TrechoORM.documento_id == documento_id)
         return consulta.limit(limite).all()
 
-    def atualizar_embeddings_trechos(self, embeddings_por_trecho_id: dict[int, list[float]]) -> None:
+    def atualizar_embeddings_trechos(
+        self, embeddings_por_trecho_id: dict[int, list[float]]
+    ) -> None:
         if not embeddings_por_trecho_id:
             return
 
         ids_trechos = list(embeddings_por_trecho_id.keys())
-        trechos = self.sessao.query(TrechoORM).filter(TrechoORM.id.in_(ids_trechos)).all()
+        trechos = (
+            self.sessao.query(TrechoORM).filter(TrechoORM.id.in_(ids_trechos)).all()
+        )
         for trecho in trechos:
             trecho.embedding = embeddings_por_trecho_id[trecho.id]
 
@@ -170,12 +200,16 @@ class RepositorioDocumentos:
         self.sessao.commit()
         return total_atualizado
 
-    def buscar_trechos_por_texto(self, texto_busca: str, limite: int) -> list[TrechoSimilarEncontrado]:
+    def buscar_trechos_por_texto(
+        self, texto_busca: str, limite: int
+    ) -> list[TrechoSimilarEncontrado]:
         termos_busca = self._extrair_termos_busca(texto_busca)
         if limite <= 0 or not termos_busca:
             return []
 
-        filtros_termos = [TrechoORM.conteudo.ilike(f"%{termo}%") for termo in termos_busca]
+        filtros_termos = [
+            TrechoORM.conteudo.ilike(f"%{termo}%") for termo in termos_busca
+        ]
         criterios_ordenacao = self._criar_criterios_ordenacao_lexical(
             texto_busca=texto_busca,
             termos_busca=termos_busca,
@@ -249,15 +283,25 @@ class RepositorioDocumentos:
         return list(dict.fromkeys(termos))
 
     @staticmethod
-    def _calcular_pontuacao_lexical(conteudo: str, texto_busca: str, termos_busca: list[str]) -> float:
+    def _calcular_pontuacao_lexical(
+        conteudo: str, texto_busca: str, termos_busca: list[str]
+    ) -> float:
         conteudo_normalizado = conteudo.lower()
         pergunta_normalizada = texto_busca.strip().lower()
-        termos_encontrados = sum(1 for termo in termos_busca if termo in conteudo_normalizado)
+        termos_encontrados = sum(
+            1 for termo in termos_busca if termo in conteudo_normalizado
+        )
         cobertura_termos = termos_encontrados / len(termos_busca)
-        bonus_frase_exata = 0.25 if pergunta_normalizada and pergunta_normalizada in conteudo_normalizado else 0.0
+        bonus_frase_exata = (
+            0.25
+            if pergunta_normalizada and pergunta_normalizada in conteudo_normalizado
+            else 0.0
+        )
         return min(1.0, cobertura_termos + bonus_frase_exata)
 
-    def buscar_trechos_similares(self, embedding_pergunta: list[float], limite: int) -> list[TrechoSimilarEncontrado]:
+    def buscar_trechos_similares(
+        self, embedding_pergunta: list[float], limite: int
+    ) -> list[TrechoSimilarEncontrado]:
         distancia_cosseno = TrechoORM.embedding.cosine_distance(embedding_pergunta)
         consulta = (
             self.sessao.query(
