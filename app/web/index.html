@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Interface Tech Doc AI</title>
+    <link rel="stylesheet" href="/interface/estilos.css" />
+  </head>
+  <body>
+    <main class="pagina">
+      <header class="cabecalho">
+        <p class="rotulo">Tech Doc AI</p>
+        <h1>Interface web da API RAG</h1>
+        <p>Envie documentos, acompanhe o processamento e faça perguntas ao chat em uma única tela.</p>
+      </header>
+
+      <section class="grade-blocos" aria-label="Ações principais da interface">
+        <article class="bloco" id="bloco-saude">
+          <div class="topo-bloco">
+            <div>
+              <p class="rotulo">Status da API</p>
+              <h2>Saúde do serviço</h2>
+            </div>
+            <button type="button" id="botao-verificar-saude">Verificar</button>
+          </div>
+          <p id="mensagem-saude" class="mensagem neutra">Clique em verificar para consultar o endpoint de saúde.</p>
+          <pre id="saida-saude" class="saida" aria-live="polite"></pre>
+        </article>
+
+        <article class="bloco" id="bloco-ingestao">
+          <div class="topo-bloco">
+            <div>
+              <p class="rotulo">Ingestão de documento</p>
+              <h2>Enviar arquivo</h2>
+            </div>
+          </div>
+          <form id="formulario-ingestao" class="formulario">
+            <label for="arquivo-documento">Selecione um arquivo .txt, .md ou .pdf</label>
+            <input id="arquivo-documento" name="arquivo" type="file" accept=".txt,.md,.pdf" required />
+            <button type="submit">Enviar documento</button>
+          </form>
+          <p id="mensagem-ingestao" class="mensagem neutra">Nenhum documento enviado nesta sessão.</p>
+          <p class="destaque">Documento ID: <strong id="documento-id-atual">não informado</strong></p>
+          <pre id="saida-ingestao" class="saida" aria-live="polite"></pre>
+        </article>
+
+        <article class="bloco" id="bloco-status-documento">
+          <div class="topo-bloco">
+            <div>
+              <p class="rotulo">Status do documento</p>
+              <h2>Acompanhar processamento</h2>
+            </div>
+          </div>
+          <form id="formulario-status-documento" class="formulario">
+            <label for="campo-documento-id">Documento ID</label>
+            <input id="campo-documento-id" name="documento_id" type="number" min="1" placeholder="Ex.: 1" required />
+            <button type="submit">Atualizar status</button>
+          </form>
+          <p id="mensagem-status-documento" class="mensagem neutra">Informe o ID para consultar o status.</p>
+          <pre id="saida-status-documento" class="saida" aria-live="polite"></pre>
+        </article>
+
+        <article class="bloco" id="bloco-chat">
+          <div class="topo-bloco">
+            <div>
+              <p class="rotulo">Perguntas ao chat</p>
+              <h2>Consultar documentos</h2>
+            </div>
+          </div>
+          <form id="formulario-chat" class="formulario">
+            <label for="campo-pergunta">Pergunta</label>
+            <textarea id="campo-pergunta" name="pergunta" rows="5" minlength="3" placeholder="Digite sua pergunta sobre os documentos indexados" required></textarea>
+            <label for="campo-limite-fontes">Quantidade máxima de fontes</label>
+            <input id="campo-limite-fontes" name="limite_fontes" type="number" min="1" max="10" value="4" />
+            <button type="submit">Perguntar</button>
+          </form>
+          <p id="mensagem-chat" class="mensagem neutra">A resposta e as fontes aparecerão aqui.</p>
+          <section class="resultado-chat" aria-live="polite">
+            <h3>Resposta</h3>
+            <div id="resposta-chat" class="texto-resposta">Sem resposta ainda.</div>
+            <h3>Fontes</h3>
+            <div id="fontes-chat" class="lista-fontes">Nenhuma fonte retornada.</div>
+          </section>
+        </article>
+      </section>
+    </main>
+
+    <script src="/interface/app.js" defer></script>
+  </body>
+</html>
