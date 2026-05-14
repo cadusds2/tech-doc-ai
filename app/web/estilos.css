@@ -9,6 +9,7 @@
   --cor-borda: #d9e0ef;
   --cor-sucesso: #137a3a;
   --cor-erro: #b42318;
+  --cor-erro-escura: #8f1b12;
   --sombra: 0 18px 45px rgba(23, 32, 51, 0.08);
 }
 
@@ -51,6 +52,15 @@ button:disabled {
   cursor: wait;
   opacity: 0.7;
   transform: none;
+}
+
+.botao-perigo {
+  background: var(--cor-erro);
+}
+
+.botao-perigo:hover,
+.botao-perigo:focus-visible {
+  background: var(--cor-erro-escura);
 }
 
 .pagina {

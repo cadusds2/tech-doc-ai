@@ -15,3 +15,9 @@ class RespostaDocumentoIngerido(BaseModel):
     mensagem_erro_processamento: str | None = None
     criado_em: datetime
     atualizado_em: datetime | None = None
+
+
+class RespostaDocumentoExcluido(BaseModel):
+    documento_id: int
+    excluido: bool
+    mensagem: str

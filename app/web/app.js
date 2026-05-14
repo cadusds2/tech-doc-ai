@@ -13,6 +13,10 @@ const elementos = {
   campoDocumentoId: selecionar("#campo-documento-id"),
   mensagemStatusDocumento: selecionar("#mensagem-status-documento"),
   saidaStatusDocumento: selecionar("#saida-status-documento"),
+  formularioExclusaoDocumento: selecionar("#formulario-exclusao-documento"),
+  campoDocumentoIdExclusao: selecionar("#campo-documento-id-exclusao"),
+  mensagemExclusaoDocumento: selecionar("#mensagem-exclusao-documento"),
+  saidaExclusaoDocumento: selecionar("#saida-exclusao-documento"),
   formularioChat: selecionar("#formulario-chat"),
   campoPergunta: selecionar("#campo-pergunta"),
   campoLimiteFontes: selecionar("#campo-limite-fontes"),
@@ -47,7 +51,7 @@ async function requisitarJson(url, opcoes = {}) {
   const resposta = await fetch(url, opcoes);
   const dados = await lerRespostaJson(resposta);
   if (!resposta.ok) {
-    const detalhe = dados.detail || dados.mensagem || "Falha ao consultar a API.";
+    const detalhe = dados.detalhe || dados.detail || dados.mensagem || "Falha ao consultar a API.";
     throw new Error(Array.isArray(detalhe) ? formatarJson(detalhe) : detalhe);
   }
   return dados;
@@ -87,6 +91,7 @@ async function enviarDocumento(evento) {
     });
     elementos.documentoIdAtual.textContent = dados.documento_id;
     elementos.campoDocumentoId.value = dados.documento_id;
+    elementos.campoDocumentoIdExclusao.value = dados.documento_id;
     elementos.saidaIngestao.textContent = formatarJson(dados);
     atualizarMensagem(elementos.mensagemIngestao, "Documento enviado com sucesso.", "sucesso");
   } catch (erro) {
@@ -115,6 +120,38 @@ async function atualizarStatusDocumento(evento) {
   } catch (erro) {
     elementos.saidaStatusDocumento.textContent = "";
     atualizarMensagem(elementos.mensagemStatusDocumento, `Erro ao consultar documento: ${erro.message}`, "erro");
+  }
+}
+
+async function excluirDocumento(evento) {
+  evento.preventDefault();
+  const documentoId = elementos.campoDocumentoIdExclusao.value.trim();
+  if (!documentoId) {
+    atualizarMensagem(elementos.mensagemExclusaoDocumento, "Informe o ID do documento.", "erro");
+    return;
+  }
+
+  const confirmouExclusao = window.confirm(`Confirma a exclusão do documento ${documentoId}?`);
+  if (!confirmouExclusao) {
+    atualizarMensagem(elementos.mensagemExclusaoDocumento, "Exclusão cancelada.");
+    return;
+  }
+
+  atualizarMensagem(elementos.mensagemExclusaoDocumento, "Excluindo documento...");
+  try {
+    const dados = await requisitarJson(`/documentos/${documentoId}`, { method: "DELETE" });
+    elementos.saidaExclusaoDocumento.textContent = formatarJson(dados);
+    if (elementos.documentoIdAtual.textContent === documentoId) {
+      elementos.documentoIdAtual.textContent = "não informado";
+    }
+    if (elementos.campoDocumentoId.value === documentoId) {
+      elementos.campoDocumentoId.value = "";
+      elementos.saidaStatusDocumento.textContent = "";
+    }
+    atualizarMensagem(elementos.mensagemExclusaoDocumento, dados.mensagem, "sucesso");
+  } catch (erro) {
+    elementos.saidaExclusaoDocumento.textContent = "";
+    atualizarMensagem(elementos.mensagemExclusaoDocumento, `Erro ao excluir documento: ${erro.message}`, "erro");
   }
 }
 
@@ -186,4 +223,5 @@ async function perguntarAoChat(evento) {
 elementos.botaoVerificarSaude.addEventListener("click", verificarSaude);
 elementos.formularioIngestao.addEventListener("submit", enviarDocumento);
 elementos.formularioStatusDocumento.addEventListener("submit", atualizarStatusDocumento);
+elementos.formularioExclusaoDocumento.addEventListener("submit", excluirDocumento);
 elementos.formularioChat.addEventListener("submit", perguntarAoChat);

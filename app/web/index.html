@@ -60,6 +60,22 @@
           <pre id="saida-status-documento" class="saida" aria-live="polite"></pre>
         </article>
 
+        <article class="bloco" id="bloco-exclusao-documento">
+          <div class="topo-bloco">
+            <div>
+              <p class="rotulo">Exclusão de documento</p>
+              <h2>Remover documento</h2>
+            </div>
+          </div>
+          <form id="formulario-exclusao-documento" class="formulario">
+            <label for="campo-documento-id-exclusao">Documento ID</label>
+            <input id="campo-documento-id-exclusao" name="documento_id" type="number" min="1" placeholder="Ex.: 1" required />
+            <button type="submit" class="botao-perigo">Excluir documento</button>
+          </form>
+          <p id="mensagem-exclusao-documento" class="mensagem neutra">Informe o ID para excluir um documento finalizado ou com erro.</p>
+          <pre id="saida-exclusao-documento" class="saida" aria-live="polite"></pre>
+        </article>
+
         <article class="bloco" id="bloco-chat">
           <div class="topo-bloco">
             <div>

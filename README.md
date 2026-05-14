@@ -69,7 +69,7 @@ uvicorn app.main:app --reload
 
 A API ficará disponível em `http://127.0.0.1:8000`.
 
-A interface web simples para operar os fluxos principais fica disponível em `http://127.0.0.1:8000/interface`. Ela permite verificar a saúde da API, enviar documentos, acompanhar o status de processamento e fazer perguntas ao chat com exibição das fontes retornadas.
+A interface web simples para operar os fluxos principais fica disponível em `http://127.0.0.1:8000/interface`. Ela permite verificar a saúde da API, enviar documentos, acompanhar o status de processamento, excluir documentos finalizados ou com erro e fazer perguntas ao chat com exibição das fontes retornadas.
 
 ## Endpoints disponíveis
 
@@ -158,6 +158,31 @@ Exemplo de falha persistida:
 ```
 
 A arquitetura já separa o agendamento (`AgendadorProcessamentoDocumentos`) do processamento (`ProcessadorDocumentos`), permitindo substituir o agendador baseado em `BackgroundTasks` por fila externa, como Redis, Celery ou equivalente, sem mudar o contrato HTTP.
+
+### `DELETE /documentos/{documento_id}`
+
+Exclui um documento já finalizado ou com erro, removendo também os trechos vinculados. Documentos nos estados `recebido`, `texto_extraido` ou `trechos_gerados` são considerados em processamento e retornam `409 Conflict`, evitando remover registros enquanto tarefas assíncronas ainda podem estar atuando sobre eles.
+
+Exemplo:
+
+```bash
+curl -X DELETE http://127.0.0.1:8000/documentos/1
+```
+
+Exemplo de resposta de sucesso:
+
+```json
+{
+  "documento_id": 1,
+  "excluido": true,
+  "mensagem": "Documento excluído com sucesso."
+}
+```
+
+Possíveis erros:
+
+- `404 Not Found`: documento inexistente.
+- `409 Conflict`: documento ainda em processamento.
 
 ### `POST /chat/perguntar`
 

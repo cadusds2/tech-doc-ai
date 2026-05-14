@@ -5,12 +5,16 @@ from pathlib import PurePosixPath
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
-from app.api.schemas.documentos import RespostaDocumentoIngerido
+from app.api.schemas.documentos import (
+    RespostaDocumentoExcluido,
+    RespostaDocumentoIngerido,
+)
 from app.core.config import obter_configuracoes
 from app.dependencias import (
     obter_agendador_processamento_documentos,
     obter_servico_ingestao_documentos,
 )
+from app.domain.documento import StatusProcessamentoDocumento
 from app.services.ingestao_documentos import ServicoIngestaoDocumentos
 from app.services.parser_documentos import ServicoParserDocumentos
 from app.services.processamento_documentos import AgendadorProcessamentoDocumentos
@@ -72,6 +76,48 @@ async def ingerir_documento(
         extra={"documento_id": documento.id, "nome_arquivo": nome_arquivo},
     )
     return _criar_resposta_documento(documento)
+
+
+STATUS_PROCESSAMENTO_COM_EXCLUSAO_BLOQUEADA = {
+    StatusProcessamentoDocumento.RECEBIDO,
+    StatusProcessamentoDocumento.TEXTO_EXTRAIDO,
+    StatusProcessamentoDocumento.TRECHOS_GERADOS,
+}
+
+
+@roteador_documentos.delete(
+    "/{documento_id}",
+    response_model=RespostaDocumentoExcluido,
+)
+def excluir_documento(
+    documento_id: int,
+    servico_ingestao: ServicoIngestaoDocumentos = Depends(
+        obter_servico_ingestao_documentos
+    ),
+) -> RespostaDocumentoExcluido:
+    documento = servico_ingestao.buscar_documento(documento_id)
+    if documento is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Documento não encontrado."
+        )
+
+    if documento.status_processamento in STATUS_PROCESSAMENTO_COM_EXCLUSAO_BLOQUEADA:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Documento em processamento não pode ser excluído.",
+        )
+
+    excluido = servico_ingestao.excluir_documento(documento_id)
+    if not excluido:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Documento não encontrado."
+        )
+
+    return RespostaDocumentoExcluido(
+        documento_id=documento_id,
+        excluido=True,
+        mensagem="Documento excluído com sucesso.",
+    )
 
 
 @roteador_documentos.get(
