@@ -69,7 +69,7 @@ uvicorn app.main:app --reload
 
 A API ficará disponível em `http://127.0.0.1:8000`.
 
-A interface web simples para operar os fluxos principais fica disponível em `http://127.0.0.1:8000/interface`. Ela permite verificar a saúde da API, enviar documentos, acompanhar o status de processamento e fazer perguntas ao chat com exibição das fontes retornadas.
+A interface web simples para operar os fluxos principais fica disponível em `http://127.0.0.1:8000/interface`. Ela permite verificar a saúde da API, enviar documentos, acompanhar o status de processamento, excluir documentos finalizados ou com erro e fazer perguntas ao chat com exibição das fontes retornadas.
 
 ## Endpoints disponíveis
 
