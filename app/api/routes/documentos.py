@@ -6,7 +6,7 @@ from pathlib import PurePosixPath
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
 from app.api.schemas.documentos import RespostaDocumentoIngerido
-from app.configuracao import obter_configuracoes
+from app.core.config import obter_configuracoes
 from app.dependencias import (
     obter_agendador_processamento_documentos,
     obter_servico_ingestao_documentos,
