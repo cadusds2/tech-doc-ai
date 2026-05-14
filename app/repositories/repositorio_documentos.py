@@ -226,7 +226,11 @@ class RepositorioDocumentos:
                 TrechoORM.caminho_hierarquico.label("caminho_hierarquico"),
             )
             .join(DocumentoORM, DocumentoORM.id == TrechoORM.documento_id)
-            .filter(or_(*filtros_termos))
+            .filter(
+                DocumentoORM.status_processamento
+                == StatusProcessamentoDocumento.INDEXADO.value,
+                or_(*filtros_termos),
+            )
             .order_by(*criterios_ordenacao)
             .limit(limite * 3)
         )
@@ -316,7 +320,11 @@ class RepositorioDocumentos:
                 (1 - distancia_cosseno).label("pontuacao_similaridade"),
             )
             .join(DocumentoORM, DocumentoORM.id == TrechoORM.documento_id)
-            .filter(TrechoORM.embedding.is_not(None))
+            .filter(
+                DocumentoORM.status_processamento
+                == StatusProcessamentoDocumento.INDEXADO.value,
+                TrechoORM.embedding.is_not(None),
+            )
             .order_by(distancia_cosseno.asc())
             .limit(limite)
         )
