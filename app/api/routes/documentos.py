@@ -4,16 +4,18 @@ import unicodedata
 from hashlib import sha256
 from pathlib import PurePosixPath
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 
 from app.api.schemas.documentos import (
     RespostaDocumentoExcluido,
     RespostaDocumentoIngerido,
 )
+from app.api.schemas.projetos import ProjetoResumo
 from app.core.config import obter_configuracoes
 from app.dependencias import (
     obter_agendador_processamento_documentos,
     obter_servico_ingestao_documentos,
+    obter_servico_projetos,
 )
 from app.domain.documento import StatusProcessamentoDocumento
 from app.services.ingestao_documentos import (
@@ -22,6 +24,7 @@ from app.services.ingestao_documentos import (
 )
 from app.services.parser_documentos import ServicoParserDocumentos
 from app.services.processamento_documentos import AgendadorProcessamentoDocumentos
+from app.services.projetos import ErroProjetoInvalido, ServicoProjetos
 
 roteador_documentos = APIRouter(prefix="/documentos", tags=["documentos"])
 logger = logging.getLogger(__name__)
@@ -42,9 +45,9 @@ EXTENSOES_SUSPEITAS = {
     ".vbs",
 }
 PADRAO_CARACTERES_CONTROLE = re.compile(r"[\x00-\x1f\x7f]")
-MENSAGEM_ARQUIVO_INVALIDO = "Arquivo enviado inválido."
+MENSAGEM_ARQUIVO_INVALIDO = "Arquivo enviado invalido."
 MENSAGEM_ARQUIVO_GRANDE = "Arquivo acima do limite permitido."
-MENSAGEM_ARQUIVO_VAZIO = "Arquivo vazio não é permitido."
+MENSAGEM_ARQUIVO_VAZIO = "Arquivo vazio nao e permitido."
 
 
 @roteador_documentos.post(
@@ -54,9 +57,12 @@ MENSAGEM_ARQUIVO_VAZIO = "Arquivo vazio não é permitido."
 )
 async def ingerir_documento(
     arquivo: UploadFile = File(...),
+    projeto_id: int | None = Form(default=None),
+    novo_projeto_nome: str | None = Form(default=None),
     servico_ingestao: ServicoIngestaoDocumentos = Depends(
         obter_servico_ingestao_documentos
     ),
+    servico_projetos: ServicoProjetos = Depends(obter_servico_projetos),
     agendador_processamento: AgendadorProcessamentoDocumentos = Depends(
         obter_agendador_processamento_documentos
     ),
@@ -69,13 +75,29 @@ async def ingerir_documento(
         limite_bytes=configuracao.tamanho_maximo_upload_bytes,
         nome_arquivo=nome_arquivo,
     )
+    try:
+        projeto = servico_projetos.resolver_projeto_upload(
+            projeto_id=projeto_id,
+            novo_projeto_nome=novo_projeto_nome,
+        )
+    except ErroProjetoInvalido as erro:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(erro),
+        ) from erro
+
     logger.info(
-        "Documento recebido para ingestão.",
-        extra={"nome_arquivo": nome_arquivo, "tamanho_bytes": len(conteudo)},
+        "Documento recebido para ingestao.",
+        extra={
+            "nome_arquivo": nome_arquivo,
+            "tamanho_bytes": len(conteudo),
+            "projeto_id": projeto.id,
+        },
     )
     hash_conteudo = sha256(conteudo).hexdigest()
     try:
         documento = servico_ingestao.registrar_documento_recebido(
+            projeto_id=projeto.id,
             nome_arquivo=nome_arquivo,
             conteudo_bytes=conteudo,
             hash_conteudo=hash_conteudo,
@@ -87,8 +109,12 @@ async def ingerir_documento(
         ) from erro
     agendador_processamento.agendar_processamento(documento.id, nome_arquivo, conteudo)
     logger.info(
-        "Processamento de ingestão agendado.",
-        extra={"documento_id": documento.id, "nome_arquivo": nome_arquivo},
+        "Processamento de ingestao agendado.",
+        extra={
+            "documento_id": documento.id,
+            "nome_arquivo": nome_arquivo,
+            "projeto_id": projeto.id,
+        },
     )
     return _criar_resposta_documento(documento)
 
@@ -98,6 +124,27 @@ STATUS_PROCESSAMENTO_COM_EXCLUSAO_BLOQUEADA = {
     StatusProcessamentoDocumento.TEXTO_EXTRAIDO,
     StatusProcessamentoDocumento.TRECHOS_GERADOS,
 }
+
+
+@roteador_documentos.get(
+    "",
+    response_model=list[RespostaDocumentoIngerido],
+)
+def listar_documentos(
+    limite: int = 50,
+    projeto_id: int | None = None,
+    servico_ingestao: ServicoIngestaoDocumentos = Depends(
+        obter_servico_ingestao_documentos
+    ),
+) -> list[RespostaDocumentoIngerido]:
+    limite_ajustado = min(max(limite, 1), 200)
+    return [
+        _criar_resposta_documento(documento)
+        for documento in servico_ingestao.listar_documentos(
+            limite=limite_ajustado,
+            projeto_id=projeto_id,
+        )
+    ]
 
 
 @roteador_documentos.delete(
@@ -113,25 +160,25 @@ def excluir_documento(
     documento = servico_ingestao.buscar_documento(documento_id)
     if documento is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Documento não encontrado."
+            status_code=status.HTTP_404_NOT_FOUND, detail="Documento nao encontrado."
         )
 
     if documento.status_processamento in STATUS_PROCESSAMENTO_COM_EXCLUSAO_BLOQUEADA:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Documento em processamento não pode ser excluído.",
+            detail="Documento em processamento nao pode ser excluido.",
         )
 
     excluido = servico_ingestao.excluir_documento(documento_id)
     if not excluido:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Documento não encontrado."
+            status_code=status.HTTP_404_NOT_FOUND, detail="Documento nao encontrado."
         )
 
     return RespostaDocumentoExcluido(
         documento_id=documento_id,
         excluido=True,
-        mensagem="Documento excluído com sucesso.",
+        mensagem="Documento excluido com sucesso.",
     )
 
 
@@ -148,7 +195,7 @@ def consultar_documento(
     documento = servico_ingestao.buscar_documento(documento_id)
     if documento is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Documento não encontrado."
+            status_code=status.HTTP_404_NOT_FOUND, detail="Documento nao encontrado."
         )
     return _criar_resposta_documento(documento)
 
@@ -243,6 +290,12 @@ def _criar_resposta_documento(documento) -> RespostaDocumentoIngerido:
         quantidade_caracteres=documento.quantidade_caracteres,
         status_processamento=documento.status_processamento,
         mensagem_erro_processamento=documento.mensagem_erro_processamento,
+        projeto=ProjetoResumo(
+            id=documento.projeto.id,
+            nome=documento.projeto.nome,
+            slug=documento.projeto.slug,
+            descricao=documento.projeto.descricao,
+        ),
         criado_em=documento.criado_em,
         atualizado_em=documento.atualizado_em,
     )

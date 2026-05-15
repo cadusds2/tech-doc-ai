@@ -12,6 +12,13 @@ class StatusProcessamentoDocumento(str, Enum):
     ERRO = "erro"
 
 
+class ProjetoAssociado(BaseModel):
+    id: int
+    nome: str
+    slug: str
+    descricao: str | None = None
+
+
 class DocumentoIngerido(BaseModel):
     id: int
     nome_arquivo: str
@@ -20,5 +27,6 @@ class DocumentoIngerido(BaseModel):
     quantidade_caracteres: int
     status_processamento: StatusProcessamentoDocumento
     mensagem_erro_processamento: str | None = None
+    projeto: ProjetoAssociado
     criado_em: datetime
     atualizado_em: datetime | None = None

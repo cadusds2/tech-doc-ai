@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from sqlalchemy import case, literal, or_
 
 from app.domain.documento import StatusProcessamentoDocumento
-from app.infra.modelos_orm import DocumentoORM, TrechoORM
+from app.infra.modelos_orm import DocumentoORM, ProjetoORM, TrechoORM
 from app.services.chunking import TrechoGerado
 
 
@@ -27,6 +27,7 @@ class RepositorioDocumentos:
 
     def salvar_metadados_documento(
         self,
+        projeto_id: int,
         nome_arquivo: str,
         tipo_arquivo: str,
         conteudo_extraido: str,
@@ -35,6 +36,7 @@ class RepositorioDocumentos:
         status_processamento: StatusProcessamentoDocumento = StatusProcessamentoDocumento.TEXTO_EXTRAIDO,
     ) -> DocumentoORM:
         documento = DocumentoORM(
+            projeto_id=projeto_id,
             nome_arquivo=nome_arquivo,
             tipo_arquivo=tipo_arquivo,
             conteudo_extraido=conteudo_extraido,
@@ -50,12 +52,14 @@ class RepositorioDocumentos:
 
     def registrar_documento_recebido(
         self,
+        projeto_id: int,
         nome_arquivo: str,
         hash_conteudo: str | None,
         tipo_arquivo: str,
         tamanho_bytes: int,
     ) -> DocumentoORM:
         documento = DocumentoORM(
+            projeto_id=projeto_id,
             nome_arquivo=nome_arquivo,
             hash_conteudo=hash_conteudo,
             tipo_arquivo=tipo_arquivo,
@@ -71,17 +75,29 @@ class RepositorioDocumentos:
         return documento
 
     def buscar_documento_por_hash_conteudo(
-        self, hash_conteudo: str
+        self,
+        hash_conteudo: str,
+        projeto_id: int | None = None,
     ) -> DocumentoORM | None:
-        return (
-            self.sessao.query(DocumentoORM)
-            .filter(DocumentoORM.hash_conteudo == hash_conteudo)
-            .order_by(DocumentoORM.id.asc())
-            .first()
+        consulta = self.sessao.query(DocumentoORM).filter(
+            DocumentoORM.hash_conteudo == hash_conteudo
         )
+        if projeto_id is not None:
+            consulta = consulta.filter(DocumentoORM.projeto_id == projeto_id)
+        return consulta.order_by(DocumentoORM.id.asc()).first()
 
     def buscar_documento_por_id(self, documento_id: int) -> DocumentoORM | None:
         return self.sessao.get(DocumentoORM, documento_id)
+
+    def listar_documentos(
+        self,
+        limite: int = 50,
+        projeto_id: int | None = None,
+    ) -> list[DocumentoORM]:
+        consulta = self.sessao.query(DocumentoORM)
+        if projeto_id is not None:
+            consulta = consulta.filter(DocumentoORM.projeto_id == projeto_id)
+        return consulta.order_by(DocumentoORM.id.desc()).limit(limite).all()
 
     def excluir_documento(self, documento_id: int) -> bool:
         documento = self.buscar_documento_por_id(documento_id)
@@ -134,7 +150,7 @@ class RepositorioDocumentos:
     def _obter_documento_existente(self, documento_id: int) -> DocumentoORM:
         documento = self.buscar_documento_por_id(documento_id)
         if documento is None:
-            raise ValueError(f"Documento {documento_id} não encontrado.")
+            raise ValueError(f"Documento {documento_id} nao encontrado.")
         return documento
 
     def salvar_trechos_documento(
@@ -213,7 +229,10 @@ class RepositorioDocumentos:
         return total_atualizado
 
     def buscar_trechos_por_texto(
-        self, texto_busca: str, limite: int
+        self,
+        texto_busca: str,
+        limite: int,
+        projeto_id: int,
     ) -> list[TrechoSimilarEncontrado]:
         termos_busca = self._extrair_termos_busca(texto_busca)
         if limite <= 0 or not termos_busca:
@@ -238,7 +257,9 @@ class RepositorioDocumentos:
                 TrechoORM.caminho_hierarquico.label("caminho_hierarquico"),
             )
             .join(DocumentoORM, DocumentoORM.id == TrechoORM.documento_id)
+            .join(ProjetoORM, ProjetoORM.id == DocumentoORM.projeto_id)
             .filter(
+                DocumentoORM.projeto_id == projeto_id,
                 DocumentoORM.status_processamento
                 == StatusProcessamentoDocumento.INDEXADO.value,
                 or_(*filtros_termos),
@@ -295,7 +316,11 @@ class RepositorioDocumentos:
 
     @staticmethod
     def _extrair_termos_busca(texto_busca: str) -> list[str]:
-        termos = re.findall(r"[\wÀ-ÿ]{3,}", texto_busca.lower())
+        termos = [
+            termo
+            for termo in re.findall(r"\w+", texto_busca.lower(), flags=re.UNICODE)
+            if len(termo) >= 3
+        ]
         return list(dict.fromkeys(termos))
 
     @staticmethod
@@ -316,7 +341,10 @@ class RepositorioDocumentos:
         return min(1.0, cobertura_termos + bonus_frase_exata)
 
     def buscar_trechos_similares(
-        self, embedding_pergunta: list[float], limite: int
+        self,
+        embedding_pergunta: list[float],
+        limite: int,
+        projeto_id: int,
     ) -> list[TrechoSimilarEncontrado]:
         distancia_cosseno = TrechoORM.embedding.cosine_distance(embedding_pergunta)
         consulta = (
@@ -332,7 +360,9 @@ class RepositorioDocumentos:
                 (1 - distancia_cosseno).label("pontuacao_similaridade"),
             )
             .join(DocumentoORM, DocumentoORM.id == TrechoORM.documento_id)
+            .join(ProjetoORM, ProjetoORM.id == DocumentoORM.projeto_id)
             .filter(
+                DocumentoORM.projeto_id == projeto_id,
                 DocumentoORM.status_processamento
                 == StatusProcessamentoDocumento.INDEXADO.value,
                 TrechoORM.embedding.is_not(None),

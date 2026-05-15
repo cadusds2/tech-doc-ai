@@ -2,7 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.domain.documento import StatusProcessamentoDocumento
-from app.infra.modelos_orm import Base, DocumentoORM, TrechoORM
+from app.infra.modelos_orm import Base, DocumentoORM, ProjetoORM, TrechoORM
 from app.repositories.repositorio_documentos import RepositorioDocumentos
 from app.services.consulta_rag import ServicoRecuperacaoHibrida
 
@@ -13,7 +13,7 @@ class _ServicoEmbeddingsFalso:
 
 
 class _RepositorioDocumentosSemBuscaVetorial(RepositorioDocumentos):
-    def buscar_trechos_similares(self, embedding_pergunta, limite):
+    def buscar_trechos_similares(self, embedding_pergunta, limite, projeto_id):
         return []
 
 
@@ -52,10 +52,21 @@ def _criar_sessao_sqlite():
     return sessionmaker(bind=engine)()
 
 
+def _criar_projeto(sessao, nome: str = "Projeto Teste") -> ProjetoORM:
+    projeto = ProjetoORM(nome=nome, slug=nome.lower().replace(" ", "-"))
+    sessao.add(projeto)
+    sessao.flush()
+    return projeto
+
+
 def _adicionar_documento(
-    sessao, nome_arquivo: str, status: StatusProcessamentoDocumento
+    sessao,
+    projeto_id: int,
+    nome_arquivo: str,
+    status: StatusProcessamentoDocumento,
 ) -> DocumentoORM:
     documento = DocumentoORM(
+        projeto_id=projeto_id,
         nome_arquivo=nome_arquivo,
         tipo_arquivo="md",
         conteudo_extraido="",
@@ -86,8 +97,9 @@ def _adicionar_trecho(sessao, documento_id: int, indice: int, conteudo: str) -> 
 
 def test_busca_lexical_deve_ordenar_candidatos_antes_de_limitar():
     sessao = _criar_sessao_sqlite()
+    projeto = _criar_projeto(sessao)
     documento = _adicionar_documento(
-        sessao, "manual.md", StatusProcessamentoDocumento.INDEXADO
+        sessao, projeto.id, "manual.md", StatusProcessamentoDocumento.INDEXADO
     )
 
     for indice in range(4):
@@ -98,18 +110,18 @@ def test_busca_lexical_deve_ordenar_candidatos_antes_de_limitar():
         sessao,
         documento.id,
         4,
-        "Trecho decisivo com alfa beta gamma em sequência exata.",
+        "Trecho decisivo com alfa beta gamma em sequencia exata.",
     )
     sessao.commit()
 
     resultado = RepositorioDocumentos(sessao).buscar_trechos_por_texto(
-        "alfa beta gamma", limite=1
+        "alfa beta gamma", limite=1, projeto_id=projeto.id
     )
 
     assert len(resultado) == 1
     assert (
         resultado[0].conteudo
-        == "Trecho decisivo com alfa beta gamma em sequência exata."
+        == "Trecho decisivo com alfa beta gamma em sequencia exata."
     )
     assert resultado[0].pontuacao_similaridade == 1.0
 
@@ -118,8 +130,9 @@ def test_repositorio_deve_salvar_e_retornar_metadados_de_trechos_lexicais():
     from app.services.chunking import TrechoGerado
 
     sessao = _criar_sessao_sqlite()
+    projeto = _criar_projeto(sessao)
     documento = _adicionar_documento(
-        sessao, "manual.md", StatusProcessamentoDocumento.TEXTO_EXTRAIDO
+        sessao, projeto.id, "manual.md", StatusProcessamentoDocumento.TEXTO_EXTRAIDO
     )
     sessao.commit()
 
@@ -129,14 +142,14 @@ def test_repositorio_deve_salvar_e_retornar_metadados_de_trechos_lexicais():
         trechos=[
             TrechoGerado(
                 indice_trecho=0,
-                conteudo="Instalação usa o pacote principal.",
+                conteudo="Instalacao usa o pacote principal.",
                 indice_inicio=0,
                 indice_fim=34,
                 tamanho_caracteres=34,
                 pagina=3,
-                secao="Instalação",
-                titulo_contexto="Instalação",
-                caminho_hierarquico="Guia > Instalação",
+                secao="Instalacao",
+                titulo_contexto="Instalacao",
+                caminho_hierarquico="Guia > Instalacao",
             )
         ],
     )
@@ -144,25 +157,28 @@ def test_repositorio_deve_salvar_e_retornar_metadados_de_trechos_lexicais():
         documento.id, StatusProcessamentoDocumento.INDEXADO
     )
 
-    resultado = repositorio.buscar_trechos_por_texto("pacote principal", limite=1)
+    resultado = repositorio.buscar_trechos_por_texto(
+        "pacote principal", limite=1, projeto_id=projeto.id
+    )
 
     assert len(resultado) == 1
     assert resultado[0].pagina == 3
-    assert resultado[0].secao == "Instalação"
-    assert resultado[0].titulo_contexto == "Instalação"
-    assert resultado[0].caminho_hierarquico == "Guia > Instalação"
+    assert resultado[0].secao == "Instalacao"
+    assert resultado[0].titulo_contexto == "Instalacao"
+    assert resultado[0].caminho_hierarquico == "Guia > Instalacao"
 
 
 def test_repositorio_deve_manter_metadados_opcionais_ausentes():
     sessao = _criar_sessao_sqlite()
+    projeto = _criar_projeto(sessao)
     documento = _adicionar_documento(
-        sessao, "notas.txt", StatusProcessamentoDocumento.INDEXADO
+        sessao, projeto.id, "notas.txt", StatusProcessamentoDocumento.INDEXADO
     )
     _adicionar_trecho(sessao, documento.id, 0, "Trecho simples sem metadados extras.")
     sessao.commit()
 
     resultado = RepositorioDocumentos(sessao).buscar_trechos_por_texto(
-        "simples", limite=1
+        "simples", limite=1, projeto_id=projeto.id
     )
 
     assert resultado[0].pagina is None
@@ -173,16 +189,22 @@ def test_repositorio_deve_manter_metadados_opcionais_ausentes():
 
 def test_busca_lexical_deve_recuperar_apenas_documento_indexado():
     sessao = _criar_sessao_sqlite()
+    projeto = _criar_projeto(sessao)
     documentos = [
         _adicionar_documento(
-            sessao, "indexado.md", StatusProcessamentoDocumento.INDEXADO
-        ),
-        _adicionar_documento(sessao, "erro.md", StatusProcessamentoDocumento.ERRO),
-        _adicionar_documento(
-            sessao, "recebido.md", StatusProcessamentoDocumento.RECEBIDO
+            sessao, projeto.id, "indexado.md", StatusProcessamentoDocumento.INDEXADO
         ),
         _adicionar_documento(
-            sessao, "trechos.md", StatusProcessamentoDocumento.TRECHOS_GERADOS
+            sessao, projeto.id, "erro.md", StatusProcessamentoDocumento.ERRO
+        ),
+        _adicionar_documento(
+            sessao, projeto.id, "recebido.md", StatusProcessamentoDocumento.RECEBIDO
+        ),
+        _adicionar_documento(
+            sessao,
+            projeto.id,
+            "trechos.md",
+            StatusProcessamentoDocumento.TRECHOS_GERADOS,
         ),
     ]
     for indice, documento in enumerate(documentos):
@@ -190,36 +212,66 @@ def test_busca_lexical_deve_recuperar_apenas_documento_indexado():
             sessao,
             documento.id,
             indice,
-            f"Conteúdo rastreável para {documento.nome_arquivo}.",
+            f"Conteudo rastreavel para {documento.nome_arquivo}.",
         )
     sessao.commit()
 
     resultado = RepositorioDocumentos(sessao).buscar_trechos_por_texto(
-        "rastreável", limite=10
+        "rastreavel", limite=10, projeto_id=projeto.id
     )
 
     assert [trecho.nome_arquivo for trecho in resultado] == ["indexado.md"]
 
 
+def test_busca_lexical_deve_filtrar_por_projeto():
+    sessao = _criar_sessao_sqlite()
+    projeto_a = _criar_projeto(sessao, "Projeto A")
+    projeto_b = _criar_projeto(sessao, "Projeto B")
+    documento_a = _adicionar_documento(
+        sessao, projeto_a.id, "a.md", StatusProcessamentoDocumento.INDEXADO
+    )
+    documento_b = _adicionar_documento(
+        sessao, projeto_b.id, "b.md", StatusProcessamentoDocumento.INDEXADO
+    )
+    _adicionar_trecho(sessao, documento_a.id, 0, "Termo compartilhado do projeto A.")
+    _adicionar_trecho(sessao, documento_b.id, 0, "Termo compartilhado do projeto B.")
+    sessao.commit()
+
+    resultado = RepositorioDocumentos(sessao).buscar_trechos_por_texto(
+        "compartilhado", limite=10, projeto_id=projeto_a.id
+    )
+
+    assert [trecho.nome_arquivo for trecho in resultado] == ["a.md"]
+
+
 def test_busca_vetorial_deve_filtrar_apenas_documentos_indexados():
     sessao = _SessaoFalsa()
 
-    RepositorioDocumentos(sessao).buscar_trechos_similares([0.1, 0.2, 0.3], limite=5)
+    RepositorioDocumentos(sessao).buscar_trechos_similares(
+        [0.1, 0.2, 0.3], limite=5, projeto_id=9
+    )
 
     assert any(
         getattr(criterio.left, "name", None) == "status_processamento"
         and criterio.right.value == StatusProcessamentoDocumento.INDEXADO.value
         for criterio in sessao.consulta.filtros
     )
+    assert any(
+        getattr(criterio.left, "name", None) == "projeto_id"
+        and criterio.right.value == 9
+        for criterio in sessao.consulta.filtros
+    )
 
 
 def test_recuperacao_hibrida_nao_deve_usar_fontes_de_documentos_nao_indexados():
     sessao = _criar_sessao_sqlite()
+    projeto = _criar_projeto(sessao)
     documento_indexado = _adicionar_documento(
-        sessao, "fonte-indexada.md", StatusProcessamentoDocumento.INDEXADO
+        sessao, projeto.id, "fonte-indexada.md", StatusProcessamentoDocumento.INDEXADO
     )
     documento_nao_indexado = _adicionar_documento(
         sessao,
+        projeto.id,
         "fonte-nao-indexada.md",
         StatusProcessamentoDocumento.TRECHOS_GERADOS,
     )
@@ -227,13 +279,13 @@ def test_recuperacao_hibrida_nao_deve_usar_fontes_de_documentos_nao_indexados():
         sessao,
         documento_indexado.id,
         0,
-        "Recuperação híbrida usa somente fonte liberada.",
+        "Recuperacao hibrida usa somente fonte liberada.",
     )
     _adicionar_trecho(
         sessao,
         documento_nao_indexado.id,
         1,
-        "Recuperação híbrida não deve usar esta fonte.",
+        "Recuperacao hibrida nao deve usar esta fonte.",
     )
     sessao.commit()
 
@@ -242,6 +294,10 @@ def test_recuperacao_hibrida_nao_deve_usar_fontes_de_documentos_nao_indexados():
         servico_embeddings=_ServicoEmbeddingsFalso(),
     )
 
-    resultado = servico.recuperar_trechos("recuperação híbrida fonte", limite_fontes=5)
+    resultado = servico.recuperar_trechos(
+        projeto_id=projeto.id,
+        pergunta="recuperacao hibrida fonte",
+        limite_fontes=5,
+    )
 
     assert [trecho.nome_arquivo for trecho in resultado] == ["fonte-indexada.md"]

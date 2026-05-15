@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.config import obter_configuracoes
 from app.infra.banco import FabricaSessao, obter_sessao
 from app.repositories.repositorio_documentos import RepositorioDocumentos
+from app.repositories.repositorio_projetos import RepositorioProjetos
 from app.services.chunking import (
     ContadorTokensAproximadoPorPalavras,
     EstrategiaChunkingEstrutural,
@@ -21,7 +22,11 @@ from app.services.consulta_rag import (
 from app.services.reranqueamento import ReranqueadorHeuristicoTrechos
 from app.services.embeddings import ServicoEmbeddings, criar_provedor_embeddings
 from app.services.ingestao_documentos import ServicoIngestaoDocumentos
-from app.services.processamento_documentos import AgendadorBackgroundTasksFastAPI, AgendadorProcessamentoDocumentos
+from app.services.processamento_documentos import (
+    AgendadorBackgroundTasksFastAPI,
+    AgendadorProcessamentoDocumentos,
+)
+from app.services.projetos import ServicoProjetos
 from app.services.provedor_modelo_linguagem import (
     ConfiguracaoProvedorModeloLinguagem,
     criar_provedor_modelo_linguagem,
@@ -81,6 +86,12 @@ def obter_gerador_resposta_contextual() -> GeradorRespostaContextual:
 @lru_cache
 def obter_memoria_conversas() -> MemoriaConversasEmMemoria:
     return MemoriaConversasEmMemoria()
+
+
+def obter_servico_projetos(
+    sessao: Session = Depends(obter_sessao),
+) -> ServicoProjetos:
+    return ServicoProjetos(repositorio=RepositorioProjetos(sessao))
 
 
 def obter_servico_indexacao_vetorial(

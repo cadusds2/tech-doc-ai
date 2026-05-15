@@ -16,12 +16,20 @@ class _RepositorioBuscaFalso:
         self.ultima_busca = None
         self.ultima_busca_lexical = None
 
-    def buscar_trechos_similares(self, embedding_pergunta, limite):
-        self.ultima_busca = {"embedding_pergunta": embedding_pergunta, "limite": limite}
+    def buscar_trechos_similares(self, embedding_pergunta, limite, projeto_id):
+        self.ultima_busca = {
+            "embedding_pergunta": embedding_pergunta,
+            "limite": limite,
+            "projeto_id": projeto_id,
+        }
         return self.resultados[:limite]
 
-    def buscar_trechos_por_texto(self, texto_busca, limite):
-        self.ultima_busca_lexical = {"texto_busca": texto_busca, "limite": limite}
+    def buscar_trechos_por_texto(self, texto_busca, limite, projeto_id):
+        self.ultima_busca_lexical = {
+            "texto_busca": texto_busca,
+            "limite": limite,
+            "projeto_id": projeto_id,
+        }
         return self.resultados_lexicais[:limite]
 
 
@@ -61,12 +69,13 @@ def test_recuperacao_semantica_deve_gerar_embedding_e_consultar_repositorio():
         servico_embeddings=servico_embeddings,
     )
 
-    servico.recuperar_trechos(pergunta="o que e rag?", limite_fontes=2)
+    servico.recuperar_trechos(projeto_id=5, pergunta="o que e rag?", limite_fontes=2)
 
     assert servico_embeddings.textos_recebidos == ["o que e rag?"]
     assert repositorio.ultima_busca == {
         "embedding_pergunta": [0.1, 0.2, 0.3],
         "limite": 2,
+        "projeto_id": 5,
     }
 
 
@@ -99,7 +108,9 @@ def test_consulta_rag_deve_retornar_resposta_com_fontes_e_conversation_id():
         ),
     )
 
-    resposta = servico.responder_pergunta(pergunta="Explique RAG", limite_fontes=2)
+    resposta = servico.responder_pergunta(
+        projeto_id=1, pergunta="Explique RAG", limite_fontes=2
+    )
 
     assert "sem garantia de precisao absoluta" in resposta.resposta
     assert resposta.conversation_id
@@ -147,11 +158,13 @@ def test_consulta_rag_deve_reusar_historico_em_conversas_subsequentes():
     )
 
     primeira_resposta = servico.responder_pergunta(
+        projeto_id=1,
         pergunta="O que e RAG?",
         limite_fontes=1,
         conversation_id="conv-1",
     )
     segunda_resposta = servico.responder_pergunta(
+        projeto_id=1,
         pergunta="E como isso ajuda no chat?",
         limite_fontes=1,
         conversation_id="conv-1",
@@ -204,7 +217,9 @@ def test_consulta_rag_deve_reranquear_trechos_antes_de_montar_contexto():
         reranqueador_trechos=_ReranqueadorInvertidoFalso(),
     )
 
-    resposta = servico.responder_pergunta(pergunta="Explique RAG", limite_fontes=2)
+    resposta = servico.responder_pergunta(
+        projeto_id=1, pergunta="Explique RAG", limite_fontes=2
+    )
 
     assert [fonte.trecho_id for fonte in resposta.fontes] == [2, 1]
     contexto_enviado = provedor_modelo.mensagens_recebidas[1].conteudo
@@ -256,11 +271,14 @@ def test_recuperacao_hibrida_deve_recuperar_por_termo_exato_lexical():
         peso_busca_lexical=0.3,
     )
 
-    trechos = servico.recuperar_trechos(pergunta="pgvector", limite_fontes=3)
+    trechos = servico.recuperar_trechos(
+        projeto_id=3, pergunta="pgvector", limite_fontes=3
+    )
 
     assert repositorio.ultima_busca_lexical == {
         "texto_busca": "pgvector",
         "limite": 3,
+        "projeto_id": 3,
     }
     assert [trecho.trecho_id for trecho in trechos] == [10]
     assert trechos[0].pontuacao_similaridade == 0.3
@@ -286,6 +304,7 @@ def test_recuperacao_hibrida_deve_manter_resultado_semantico_sem_termo_exato():
     )
 
     trechos = servico.recuperar_trechos(
+        projeto_id=4,
         pergunta="como responder com documentos",
         limite_fontes=2,
     )
@@ -293,6 +312,7 @@ def test_recuperacao_hibrida_deve_manter_resultado_semantico_sem_termo_exato():
     assert repositorio.ultima_busca == {
         "embedding_pergunta": [0.1, 0.2, 0.3],
         "limite": 2,
+        "projeto_id": 4,
     }
     assert [trecho.trecho_id for trecho in trechos] == [20]
     assert round(trechos[0].pontuacao_similaridade, 2) == 0.63
@@ -339,6 +359,7 @@ def test_recuperacao_hibrida_deve_combinar_resultados_e_remover_duplicidades():
     )
 
     trechos = servico.recuperar_trechos(
+        projeto_id=8,
         pergunta="recuperacao hibrida",
         limite_fontes=3,
     )
@@ -375,7 +396,9 @@ def test_consulta_rag_deve_incluir_metadados_nas_fontes_e_no_contexto():
         ),
     )
 
-    resposta = servico.responder_pergunta(pergunta="Como instalar?", limite_fontes=1)
+    resposta = servico.responder_pergunta(
+        projeto_id=1, pergunta="Como instalar?", limite_fontes=1
+    )
 
     fonte = resposta.fontes[0]
     assert fonte.pagina == 5

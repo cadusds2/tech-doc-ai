@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 
 class RequisicaoPergunta(BaseModel):
     pergunta: str = Field(min_length=3, description="Pergunta do usuario.")
+    projeto_id: int = Field(ge=1, description="Projeto usado para restringir a consulta.")
     limite_fontes: int = Field(
         default=4,
         ge=1,

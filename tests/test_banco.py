@@ -26,7 +26,9 @@ def test_inicializacao_deve_adicionar_colunas_de_origem_em_trechos_existente(mon
     assert {"pagina", "secao", "titulo_contexto", "caminho_hierarquico"}.issubset(colunas)
 
 
-def test_inicializacao_deve_adicionar_colunas_de_processamento_em_documentos_existente(monkeypatch):
+def test_inicializacao_deve_adicionar_colunas_de_processamento_em_documentos_existente(
+    monkeypatch,
+):
     engine = create_engine("sqlite:///:memory:", future=True)
     with engine.begin() as conexao:
         conexao.execute(
@@ -41,6 +43,15 @@ def test_inicializacao_deve_adicionar_colunas_de_processamento_em_documentos_exi
                 ")"
             )
         )
+        conexao.execute(
+            text(
+                "CREATE TABLE projetos ("
+                "id INTEGER PRIMARY KEY, "
+                "nome VARCHAR(255) NOT NULL, "
+                "slug VARCHAR(255) NOT NULL"
+                ")"
+            )
+        )
 
     monkeypatch.setattr(banco, "engine", engine)
 
@@ -48,10 +59,18 @@ def test_inicializacao_deve_adicionar_colunas_de_processamento_em_documentos_exi
     banco._garantir_colunas_processamento_documentos()
 
     colunas = {coluna["name"] for coluna in inspect(engine).get_columns("documentos")}
-    assert {"status_processamento", "mensagem_erro_processamento", "atualizado_em"}.issubset(colunas)
+    assert {
+        "projeto_id",
+        "hash_conteudo",
+        "status_processamento",
+        "mensagem_erro_processamento",
+        "atualizado_em",
+    }.issubset(colunas)
 
 
-def test_inicializacao_deve_retropreencher_status_processamento_de_documentos_legados(monkeypatch):
+def test_inicializacao_deve_retropreencher_status_processamento_de_documentos_legados(
+    monkeypatch,
+):
     engine = create_engine("sqlite:///:memory:", future=True)
     with engine.begin() as conexao:
         conexao.execute(
@@ -63,6 +82,15 @@ def test_inicializacao_deve_retropreencher_status_processamento_de_documentos_le
                 "tamanho_bytes INTEGER NOT NULL, "
                 "quantidade_caracteres INTEGER NOT NULL, "
                 "conteudo_extraido TEXT NOT NULL"
+                ")"
+            )
+        )
+        conexao.execute(
+            text(
+                "CREATE TABLE projetos ("
+                "id INTEGER PRIMARY KEY, "
+                "nome VARCHAR(255) NOT NULL, "
+                "slug VARCHAR(255) NOT NULL"
                 ")"
             )
         )
@@ -107,7 +135,9 @@ def test_inicializacao_deve_retropreencher_status_processamento_de_documentos_le
 
     with engine.connect() as conexao:
         status_por_id = dict(
-            conexao.execute(text("SELECT id, status_processamento FROM documentos ORDER BY id")).all()
+            conexao.execute(
+                text("SELECT id, status_processamento FROM documentos ORDER BY id")
+            ).all()
         )
 
     assert status_por_id == {
@@ -117,3 +147,54 @@ def test_inicializacao_deve_retropreencher_status_processamento_de_documentos_le
         4: "indexado",
         5: "trechos_gerados",
     }
+
+
+def test_inicializacao_deve_criar_projeto_padrao_e_vincular_documentos_legados(
+    monkeypatch,
+):
+    engine = create_engine("sqlite:///:memory:", future=True)
+    with engine.begin() as conexao:
+        conexao.execute(
+            text(
+                "CREATE TABLE projetos ("
+                "id INTEGER PRIMARY KEY, "
+                "nome VARCHAR(255) NOT NULL, "
+                "slug VARCHAR(255) NOT NULL"
+                ")"
+            )
+        )
+        conexao.execute(
+            text(
+                "CREATE TABLE documentos ("
+                "id INTEGER PRIMARY KEY, "
+                "nome_arquivo VARCHAR(255) NOT NULL, "
+                "tipo_arquivo VARCHAR(20) NOT NULL, "
+                "tamanho_bytes INTEGER NOT NULL, "
+                "quantidade_caracteres INTEGER NOT NULL, "
+                "conteudo_extraido TEXT NOT NULL"
+                ")"
+            )
+        )
+        conexao.execute(
+            text(
+                "INSERT INTO documentos "
+                "(id, nome_arquivo, tipo_arquivo, tamanho_bytes, quantidade_caracteres, conteudo_extraido) "
+                "VALUES (1, 'legado.pdf', 'pdf', 10, 0, '')"
+            )
+        )
+
+    monkeypatch.setattr(banco, "engine", engine)
+
+    banco._garantir_colunas_processamento_documentos()
+
+    with engine.connect() as conexao:
+        projeto = conexao.execute(
+            text("SELECT id, nome, slug FROM projetos WHERE slug = :slug"),
+            {"slug": banco.PROJETO_PADRAO_SLUG},
+        ).mappings().one()
+        documento = conexao.execute(
+            text("SELECT projeto_id FROM documentos WHERE id = 1")
+        ).mappings().one()
+
+    assert projeto["nome"] == banco.PROJETO_PADRAO_NOME
+    assert documento["projeto_id"] == projeto["id"]

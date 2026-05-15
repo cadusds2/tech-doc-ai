@@ -11,10 +11,10 @@
       <header class="cabecalho">
         <p class="rotulo">Tech Doc AI</p>
         <h1>Interface web da API RAG</h1>
-        <p>Envie documentos, acompanhe o processamento e faca perguntas ao chat em uma unica tela.</p>
+        <p>Organize documentos por projeto, acompanhe o processamento e converse com cada base de forma isolada.</p>
       </header>
 
-      <section class="grade-blocos" aria-label="Acoes principais da interface">
+      <section class="painel-superior" aria-label="Operacoes principais">
         <article class="bloco" id="bloco-saude">
           <div class="topo-bloco">
             <div>
@@ -30,74 +30,80 @@
         <article class="bloco" id="bloco-ingestao">
           <div class="topo-bloco">
             <div>
-              <p class="rotulo">Ingestao de documento</p>
+              <p class="rotulo">Ingestao</p>
               <h2>Enviar arquivos</h2>
             </div>
           </div>
           <form id="formulario-ingestao" class="formulario">
             <label for="arquivo-documento">Selecione um ou mais arquivos .txt, .md ou .pdf</label>
             <input id="arquivo-documento" name="arquivo" type="file" accept=".txt,.md,.pdf" multiple required />
+
+            <label for="campo-projeto-ingestao">Projeto existente</label>
+            <select id="campo-projeto-ingestao" name="projeto_id"></select>
+
+            <label for="campo-novo-projeto">Ou criar novo projeto</label>
+            <input id="campo-novo-projeto" name="novo_projeto_nome" type="text" placeholder="Ex.: Plataforma Billing" />
+
+            <p id="mensagem-sugestao-projeto" class="mensagem neutra">Selecione um arquivo para receber uma sugestao de projeto.</p>
+
             <button type="submit">Enviar arquivos</button>
           </form>
           <p id="mensagem-ingestao" class="mensagem neutra">Nenhum documento enviado nesta sessao.</p>
-          <p class="destaque">Documento ID: <strong id="documento-id-atual">nao informado</strong></p>
           <pre id="saida-ingestao" class="saida" aria-live="polite"></pre>
         </article>
+      </section>
 
-        <article class="bloco" id="bloco-status-documento">
+      <section class="grade-principal" aria-label="Documentos e conversa">
+        <article class="bloco bloco-documentos" id="bloco-documentos">
           <div class="topo-bloco">
             <div>
-              <p class="rotulo">Status do documento</p>
-              <h2>Acompanhar processamento</h2>
+              <p class="rotulo">Documentos</p>
+              <h2>Lista de documentos</h2>
             </div>
+            <button type="button" id="botao-atualizar-documentos">Atualizar lista</button>
           </div>
-          <form id="formulario-status-documento" class="formulario">
-            <label for="campo-documento-id">Documento ID</label>
-            <input id="campo-documento-id" name="documento_id" type="number" min="1" placeholder="Ex.: 1" required />
-            <button type="submit">Atualizar status</button>
-          </form>
-          <p id="mensagem-status-documento" class="mensagem neutra">Informe o ID para consultar o status.</p>
-          <pre id="saida-status-documento" class="saida" aria-live="polite"></pre>
+
+          <div class="formulario">
+            <label for="filtro-projeto-documentos">Filtrar por projeto</label>
+            <select id="filtro-projeto-documentos"></select>
+          </div>
+
+          <p id="mensagem-documentos" class="mensagem neutra">A lista mostra os documentos mais recentes e atualiza automaticamente quando houver processamento em andamento.</p>
+          <div id="lista-documentos" class="lista-documentos" aria-live="polite"></div>
         </article>
 
-        <article class="bloco" id="bloco-exclusao-documento">
-          <div class="topo-bloco">
-            <div>
-              <p class="rotulo">Exclusao de documento</p>
-              <h2>Remover documento</h2>
-            </div>
-          </div>
-          <form id="formulario-exclusao-documento" class="formulario">
-            <label for="campo-documento-id-exclusao">Documento ID</label>
-            <input id="campo-documento-id-exclusao" name="documento_id" type="number" min="1" placeholder="Ex.: 1" required />
-            <button type="submit" class="botao-perigo">Excluir documento</button>
-          </form>
-          <p id="mensagem-exclusao-documento" class="mensagem neutra">Informe o ID para excluir um documento finalizado ou com erro.</p>
-          <pre id="saida-exclusao-documento" class="saida" aria-live="polite"></pre>
-        </article>
-
-        <article class="bloco" id="bloco-chat">
+        <article class="bloco bloco-chat" id="bloco-chat">
           <div class="topo-bloco">
             <div>
               <p class="rotulo">Perguntas ao chat</p>
-              <h2>Consultar documentos</h2>
+              <h2>Conversa com os documentos</h2>
             </div>
-          </div>
-          <form id="formulario-chat" class="formulario">
-            <label for="campo-pergunta">Pergunta</label>
-            <textarea id="campo-pergunta" name="pergunta" rows="5" minlength="3" placeholder="Digite sua pergunta sobre os documentos indexados" required></textarea>
-            <label for="campo-limite-fontes">Quantidade maxima de fontes</label>
-            <input id="campo-limite-fontes" name="limite_fontes" type="number" min="1" max="10" value="4" />
-            <button type="submit">Perguntar</button>
             <button type="button" id="botao-nova-conversa">Nova conversa</button>
-          </form>
-          <p id="mensagem-chat" class="mensagem neutra">A resposta e as fontes aparecerao aqui.</p>
-          <section class="resultado-chat" aria-live="polite">
-            <h3>Resposta</h3>
-            <div id="resposta-chat" class="texto-resposta">Sem resposta ainda.</div>
-            <h3>Fontes</h3>
-            <div id="fontes-chat" class="lista-fontes">Nenhuma fonte retornada.</div>
+          </div>
+
+          <div class="formulario">
+            <label for="campo-projeto-chat">Projeto ativo no chat</label>
+            <select id="campo-projeto-chat"></select>
+          </div>
+
+          <p id="mensagem-chat" class="mensagem neutra">Selecione um projeto para ativar a conversa contextualizada.</p>
+          <section id="timeline-chat" class="timeline-chat" aria-live="polite">
+            <div class="estado-vazio-chat">
+              <strong>Sem mensagens ainda.</strong>
+              <p>Escolha um projeto e envie uma pergunta para iniciar a conversa.</p>
+            </div>
           </section>
+          <form id="formulario-chat" class="formulario formulario-chat">
+            <label for="campo-pergunta">Pergunta</label>
+            <textarea id="campo-pergunta" name="pergunta" rows="4" minlength="3" placeholder="Ex.: Quais sao as decisoes tecnicas mais importantes?" required></textarea>
+            <div class="linha-formulario">
+              <div>
+                <label for="campo-limite-fontes">Quantidade maxima de fontes</label>
+                <input id="campo-limite-fontes" name="limite_fontes" type="number" min="1" max="10" value="4" />
+              </div>
+              <button type="submit" id="botao-perguntar">Perguntar</button>
+            </div>
+          </form>
         </article>
       </section>
     </main>

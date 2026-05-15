@@ -109,7 +109,10 @@ class ServicoRecuperacaoHibrida:
         self._peso_busca_lexical = peso_busca_lexical
 
     def recuperar_trechos(
-        self, pergunta: str, limite_fontes: int
+        self,
+        projeto_id: int,
+        pergunta: str,
+        limite_fontes: int,
     ) -> list[TrechoRecuperado]:
         if limite_fontes <= 0:
             return []
@@ -117,7 +120,9 @@ class ServicoRecuperacaoHibrida:
         resultados_por_trecho_id: dict[int, dict[str, Any]] = {}
 
         for trecho in self._buscar_trechos_vetoriais(
-            pergunta=pergunta, limite_fontes=limite_fontes
+            projeto_id=projeto_id,
+            pergunta=pergunta,
+            limite_fontes=limite_fontes,
         ):
             self._registrar_resultado(
                 resultados_por_trecho_id=resultados_por_trecho_id,
@@ -126,7 +131,9 @@ class ServicoRecuperacaoHibrida:
             )
 
         for trecho in self._repositorio.buscar_trechos_por_texto(
-            texto_busca=pergunta, limite=limite_fontes
+            texto_busca=pergunta,
+            limite=limite_fontes,
+            projeto_id=projeto_id,
         ):
             self._registrar_resultado(
                 resultados_por_trecho_id=resultados_por_trecho_id,
@@ -144,7 +151,10 @@ class ServicoRecuperacaoHibrida:
         return trechos_combinados[:limite_fontes]
 
     def _buscar_trechos_vetoriais(
-        self, pergunta: str, limite_fontes: int
+        self,
+        projeto_id: int,
+        pergunta: str,
+        limite_fontes: int,
     ) -> list[TrechoRecuperado]:
         inicio_busca = perf_counter()
         embeddings = self._servico_embeddings.gerar_embeddings([pergunta])
@@ -156,11 +166,14 @@ class ServicoRecuperacaoHibrida:
                         (perf_counter() - inicio_busca) * 1000, 2
                     ),
                     "quantidade_resultados_vetoriais": 0,
+                    "projeto_id": projeto_id,
                 },
             )
             return []
         resultados = self._repositorio.buscar_trechos_similares(
-            embedding_pergunta=embeddings[0], limite=limite_fontes
+            embedding_pergunta=embeddings[0],
+            limite=limite_fontes,
+            projeto_id=projeto_id,
         )
         logger.info(
             "Busca vetorial concluida.",
@@ -170,6 +183,7 @@ class ServicoRecuperacaoHibrida:
                 ),
                 "quantidade_resultados_vetoriais": len(resultados),
                 "limite_fontes": limite_fontes,
+                "projeto_id": projeto_id,
             },
         )
         return resultados
@@ -222,13 +236,18 @@ class ServicoRecuperacaoSemantica:
         self._servico_embeddings = servico_embeddings
 
     def recuperar_trechos(
-        self, pergunta: str, limite_fontes: int
+        self,
+        projeto_id: int,
+        pergunta: str,
+        limite_fontes: int,
     ) -> list[TrechoRecuperado]:
         embeddings = self._servico_embeddings.gerar_embeddings([pergunta])
         if not embeddings:
             return []
         return self._repositorio.buscar_trechos_similares(
-            embedding_pergunta=embeddings[0], limite=limite_fontes
+            embedding_pergunta=embeddings[0],
+            limite=limite_fontes,
+            projeto_id=projeto_id,
         )
 
 
@@ -337,6 +356,7 @@ class ServicoConsultaRAG:
 
     def responder_pergunta(
         self,
+        projeto_id: int,
         pergunta: str,
         limite_fontes: int,
         conversation_id: str | None = None,
@@ -348,6 +368,7 @@ class ServicoConsultaRAG:
             historico=historico,
         )
         trechos_recuperados = self._servico_recuperacao.recuperar_trechos(
+            projeto_id=projeto_id,
             pergunta=pergunta_para_recuperacao,
             limite_fontes=limite_fontes,
         )
@@ -391,6 +412,7 @@ class ServicoConsultaRAG:
                 "quantidade_fontes_retornadas": len(fontes),
                 "limite_fontes": limite_fontes,
                 "conversation_id": conversation_id_resolvido,
+                "projeto_id": projeto_id,
             },
         )
         return RespostaPergunta(

@@ -1,6 +1,6 @@
 from collections.abc import Callable
 
-from app.domain.documento import DocumentoIngerido, StatusProcessamentoDocumento
+from app.domain.documento import DocumentoIngerido, ProjetoAssociado, StatusProcessamentoDocumento
 from app.repositories.repositorio_documentos import RepositorioDocumentos
 from app.services.chunking import ServicoChunkingDocumentos
 from app.services.indexacao_vetorial import ServicoIndexacaoVetorial
@@ -29,12 +29,17 @@ class ServicoIngestaoDocumentos:
         self._fabrica_servico_indexacao = fabrica_servico_indexacao
 
     def registrar_documento_recebido(
-        self, nome_arquivo: str, conteudo_bytes: bytes, hash_conteudo: str | None = None
+        self,
+        projeto_id: int,
+        nome_arquivo: str,
+        conteudo_bytes: bytes,
+        hash_conteudo: str | None = None,
     ) -> DocumentoIngerido:
-        documento_existente = self._buscar_documento_duplicado(hash_conteudo)
+        documento_existente = self._buscar_documento_duplicado(hash_conteudo, projeto_id)
         if documento_existente is not None:
             raise ErroDocumentoDuplicado(documento_id_existente=documento_existente.id)
         documento = self._repositorio.registrar_documento_recebido(
+            projeto_id=projeto_id,
             nome_arquivo=nome_arquivo,
             hash_conteudo=hash_conteudo,
             tipo_arquivo=extrair_extensao_arquivo(nome_arquivo),
@@ -43,12 +48,17 @@ class ServicoIngestaoDocumentos:
         return _criar_documento_ingerido(documento)
 
     def ingerir_arquivo(
-        self, nome_arquivo: str, conteudo_bytes: bytes, hash_conteudo: str | None = None
+        self,
+        projeto_id: int,
+        nome_arquivo: str,
+        conteudo_bytes: bytes,
+        hash_conteudo: str | None = None,
     ) -> DocumentoIngerido:
-        documento_existente = self._buscar_documento_duplicado(hash_conteudo)
+        documento_existente = self._buscar_documento_duplicado(hash_conteudo, projeto_id)
         if documento_existente is not None:
             raise ErroDocumentoDuplicado(documento_id_existente=documento_existente.id)
         documento_recebido = self._repositorio.registrar_documento_recebido(
+            projeto_id=projeto_id,
             nome_arquivo=nome_arquivo,
             hash_conteudo=hash_conteudo,
             tipo_arquivo=extrair_extensao_arquivo(nome_arquivo),
@@ -68,7 +78,7 @@ class ServicoIngestaoDocumentos:
             documento_recebido.id
         )
         if documento_processado is None:
-            raise ErroLeituraDocumento("Documento não encontrado após processamento.")
+            raise ErroLeituraDocumento("Documento nao encontrado apos processamento.")
         return _criar_documento_ingerido(documento_processado)
 
     def _obter_servico_indexacao(self) -> ServicoIndexacaoVetorial | None:
@@ -85,24 +95,47 @@ class ServicoIngestaoDocumentos:
             return None
         return _criar_documento_ingerido(documento)
 
+    def listar_documentos(
+        self,
+        limite: int = 50,
+        projeto_id: int | None = None,
+    ) -> list[DocumentoIngerido]:
+        return [
+            _criar_documento_ingerido(documento)
+            for documento in self._repositorio.listar_documentos(
+                limite=limite,
+                projeto_id=projeto_id,
+            )
+        ]
+
     def excluir_documento(self, documento_id: int) -> bool:
         return self._repositorio.excluir_documento(documento_id)
 
-    def _buscar_documento_duplicado(self, hash_conteudo: str | None):
+    def _buscar_documento_duplicado(
+        self,
+        hash_conteudo: str | None,
+        projeto_id: int,
+    ):
         if not hash_conteudo:
             return None
-        return self._repositorio.buscar_documento_por_hash_conteudo(hash_conteudo)
+        return self._repositorio.buscar_documento_por_hash_conteudo(
+            hash_conteudo,
+            projeto_id=projeto_id,
+        )
 
 
 class ErroDocumentoDuplicado(RuntimeError):
     def __init__(self, documento_id_existente: int):
         self.documento_id_existente = documento_id_existente
         super().__init__(
-            f"Arquivo duplicado já enviado anteriormente no documento {documento_id_existente}."
+            f"Arquivo duplicado ja enviado anteriormente no documento {documento_id_existente}."
         )
 
 
 def _criar_documento_ingerido(documento) -> DocumentoIngerido:
+    projeto = documento.projeto
+    if projeto is None:
+        raise ValueError("Documento sem projeto associado.")
     return DocumentoIngerido(
         id=documento.id,
         nome_arquivo=documento.nome_arquivo,
@@ -113,6 +146,12 @@ def _criar_documento_ingerido(documento) -> DocumentoIngerido:
             documento.status_processamento
         ),
         mensagem_erro_processamento=documento.mensagem_erro_processamento,
+        projeto=ProjetoAssociado(
+            id=projeto.id,
+            nome=projeto.nome,
+            slug=projeto.slug,
+            descricao=projeto.descricao,
+        ),
         criado_em=documento.criado_em,
         atualizado_em=documento.atualizado_em,
     )

@@ -6,16 +6,32 @@ from app.api.routes import documentos
 from app.dependencias import (
     obter_agendador_processamento_documentos,
     obter_servico_ingestao_documentos,
+    obter_servico_projetos,
 )
 from app.main import app
 from app.services.ingestao_documentos import ErroDocumentoDuplicado
 
 
+class ServicoProjetosFalso:
+    def resolver_projeto_upload(
+        self,
+        projeto_id: int | None = None,
+        novo_projeto_nome: str | None = None,
+    ):
+        return SimpleNamespace(
+            id=projeto_id or 1,
+            nome=novo_projeto_nome or "Projeto Teste",
+            slug="projeto-teste",
+            descricao=None,
+        )
+
+
 class ServicoIngestaoNaoUtilizado:
     def registrar_documento_recebido(
         self,
-        _nome_arquivo: str,
-        _conteudo: bytes,
+        projeto_id: int,
+        nome_arquivo: str,
+        conteudo_bytes: bytes,
         hash_conteudo: str | None = None,
     ):
         raise AssertionError("Upload invalido nao deve registrar documento.")
@@ -39,6 +55,7 @@ def _postar_arquivo(
     app.dependency_overrides[obter_servico_ingestao_documentos] = (
         ServicoIngestaoNaoUtilizado
     )
+    app.dependency_overrides[obter_servico_projetos] = ServicoProjetosFalso
     app.dependency_overrides[obter_agendador_processamento_documentos] = (
         AgendadorNaoUtilizado
     )
@@ -46,6 +63,7 @@ def _postar_arquivo(
         cliente = TestClient(app)
         return cliente.post(
             "/documentos/ingestao",
+            data={"novo_projeto_nome": "Projeto Teste"},
             files={"arquivo": (nome_arquivo, conteudo, "application/octet-stream")},
         )
     finally:
@@ -72,7 +90,7 @@ def test_upload_deve_rejeitar_extensao_invalida(monkeypatch):
     )
 
     assert resposta.status_code == 400
-    assert resposta.json() == {"detalhe": "Arquivo enviado inválido."}
+    assert resposta.json() == {"detalhe": "Arquivo enviado invalido."}
 
 
 def test_upload_deve_rejeitar_nome_ausente(monkeypatch):
@@ -83,7 +101,7 @@ def test_upload_deve_rejeitar_nome_ausente(monkeypatch):
     )
 
     assert resposta.status_code == 400
-    assert resposta.json() == {"detalhe": "Arquivo enviado inválido."}
+    assert resposta.json() == {"detalhe": "Arquivo enviado invalido."}
 
 
 def test_upload_deve_rejeitar_arquivo_vazio(monkeypatch):
@@ -94,13 +112,14 @@ def test_upload_deve_rejeitar_arquivo_vazio(monkeypatch):
     )
 
     assert resposta.status_code == 400
-    assert resposta.json() == {"detalhe": "Arquivo vazio não é permitido."}
+    assert resposta.json() == {"detalhe": "Arquivo vazio nao e permitido."}
 
 
 def test_upload_deve_rejeitar_arquivo_duplicado(monkeypatch):
     class ServicoIngestaoDuplicadoFalso:
         def registrar_documento_recebido(
             self,
+            projeto_id: int,
             nome_arquivo: str,
             conteudo_bytes: bytes,
             hash_conteudo: str | None = None,
@@ -115,6 +134,7 @@ def test_upload_deve_rejeitar_arquivo_duplicado(monkeypatch):
     app.dependency_overrides[obter_servico_ingestao_documentos] = (
         ServicoIngestaoDuplicadoFalso
     )
+    app.dependency_overrides[obter_servico_projetos] = ServicoProjetosFalso
     app.dependency_overrides[obter_agendador_processamento_documentos] = (
         AgendadorNaoUtilizado
     )
@@ -122,6 +142,7 @@ def test_upload_deve_rejeitar_arquivo_duplicado(monkeypatch):
         cliente = TestClient(app)
         resposta = cliente.post(
             "/documentos/ingestao",
+            data={"novo_projeto_nome": "Projeto Teste"},
             files={"arquivo": ("manual.txt", b"conteudo tecnico", "text/plain")},
         )
     finally:
@@ -129,5 +150,5 @@ def test_upload_deve_rejeitar_arquivo_duplicado(monkeypatch):
 
     assert resposta.status_code == 409
     assert resposta.json() == {
-        "detalhe": "Arquivo duplicado já enviado anteriormente no documento 7."
+        "detalhe": "Arquivo duplicado ja enviado anteriormente no documento 7."
     }

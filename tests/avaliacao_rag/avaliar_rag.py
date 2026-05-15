@@ -88,7 +88,7 @@ class RepositorioAvaliacaoRAG:
         self._similaridade_minima = similaridade_minima
 
     def buscar_trechos_similares(
-        self, embedding_pergunta: Counter[str], limite: int
+        self, embedding_pergunta: Counter[str], limite: int, projeto_id: int
     ) -> list[TrechoRecuperado]:
         resultados = []
         termos_pergunta = set(embedding_pergunta)
@@ -107,7 +107,7 @@ class RepositorioAvaliacaoRAG:
         )[:limite]
 
     def buscar_trechos_por_texto(
-        self, texto_busca: str, limite: int
+        self, texto_busca: str, limite: int, projeto_id: int
     ) -> list[TrechoRecuperado]:
         termos_pergunta = set(_vetorizar(texto_busca))
         resultados = []
@@ -192,11 +192,12 @@ def _avaliar_caso(caso: CasoAvaliacao, documentos: list[DocumentoReferencia]) ->
         else bool(fontes)
         and max(fonte.pontuacao_similaridade for fonte in fontes) >= caso.similaridade_minima
     )
-    termos_obrigatorios_presentes = all(
+    termos_obrigatorios_presentes = (not caso.deve_responder) or all(
         termo.lower() in resposta_texto.lower() for termo in caso.termos_obrigatorios
     )
     ausencia_resposta_sem_contexto = caso.deve_responder or (
-        not fontes and "Não encontrei contexto suficiente" in resposta_texto
+        not fontes
+        and "nao encontrei contexto suficiente" in resposta_texto.lower()
     )
     resposta_estavel = all(
         resposta.resposta == resposta_texto
@@ -242,6 +243,7 @@ def _executar_fluxo(caso: CasoAvaliacao, documentos: list[DocumentoReferencia]):
         ),
     )
     return servico.responder_pergunta(
+        projeto_id=1,
         pergunta=caso.pergunta,
         limite_fontes=LIMITE_FONTES_PADRAO,
     )
@@ -299,7 +301,7 @@ def _contar_fontes_uteis(fontes, trechos_esperados: list[str]) -> int:
 
 
 def _vetorizar(texto: str) -> Counter[str]:
-    termos = re.findall(r"[\wÀ-ÿ]+", texto.lower())
+    termos = re.findall(r"\w+", texto.lower(), flags=re.UNICODE)
     return Counter(termo for termo in termos if termo not in PALAVRAS_IGNORADAS and len(termo) > 2)
 
 

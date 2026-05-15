@@ -5,7 +5,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.dependencias import obter_servico_ingestao_documentos
 from app.domain.documento import StatusProcessamentoDocumento
-from app.infra.modelos_orm import Base, DocumentoORM, TrechoORM
+from app.infra.modelos_orm import Base, DocumentoORM, ProjetoORM, TrechoORM
 from app.main import app
 from app.repositories.repositorio_documentos import RepositorioDocumentos
 from app.services.ingestao_documentos import ServicoIngestaoDocumentos
@@ -38,11 +38,21 @@ def _criar_servico_ingestao(fabrica_sessao):
     )
 
 
+def _criar_projeto(sessao) -> ProjetoORM:
+    projeto = ProjetoORM(nome="Projeto Teste", slug="projeto-teste")
+    sessao.add(projeto)
+    sessao.commit()
+    sessao.refresh(projeto)
+    return projeto
+
+
 def _criar_documento(sessao, status_processamento: StatusProcessamentoDocumento):
+    projeto = _criar_projeto(sessao)
     documento = DocumentoORM(
+        projeto_id=projeto.id,
         nome_arquivo="manual.md",
         tipo_arquivo="md",
-        conteudo_extraido="Conteúdo processado.",
+        conteudo_extraido="Conteudo processado.",
         tamanho_bytes=128,
         quantidade_caracteres=21,
         status_processamento=status_processamento.value,
@@ -93,7 +103,7 @@ def test_delete_deve_excluir_documento_existente_e_retornar_confirmacao():
     assert resposta.json() == {
         "documento_id": documento.id,
         "excluido": True,
-        "mensagem": "Documento excluído com sucesso.",
+        "mensagem": "Documento excluido com sucesso.",
     }
     sessao_verificacao = fabrica_sessao()
     assert sessao_verificacao.get(DocumentoORM, documento.id) is None
@@ -109,7 +119,7 @@ def test_delete_deve_retornar_404_para_documento_inexistente():
         app.dependency_overrides.clear()
 
     assert resposta.status_code == 404
-    assert resposta.json() == {"detalhe": "Documento não encontrado."}
+    assert resposta.json() == {"detalhe": "Documento nao encontrado."}
 
 
 def test_delete_deve_remover_trechos_vinculados_ao_documento():
@@ -144,7 +154,7 @@ def test_delete_deve_bloquear_documento_em_processamento():
 
     assert resposta.status_code == 409
     assert resposta.json() == {
-        "detalhe": "Documento em processamento não pode ser excluído."
+        "detalhe": "Documento em processamento nao pode ser excluido."
     }
     sessao_verificacao = fabrica_sessao()
     assert sessao_verificacao.get(DocumentoORM, documento.id) is not None

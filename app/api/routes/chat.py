@@ -13,6 +13,7 @@ def perguntar(
     servico_consulta: ServicoConsultaRAG = Depends(obter_servico_consulta_rag),
 ) -> RespostaPergunta:
     return servico_consulta.responder_pergunta(
+        projeto_id=requisicao.projeto_id,
         pergunta=requisicao.pergunta,
         limite_fontes=requisicao.limite_fontes,
         conversation_id=requisicao.conversation_id,

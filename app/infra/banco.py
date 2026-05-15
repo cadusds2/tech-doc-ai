@@ -13,6 +13,8 @@ engine = create_engine(config.url_banco, future=True)
 FabricaSessao = sessionmaker(bind=engine, autocommit=False, autoflush=False, class_=Session)
 logger = logging.getLogger(__name__)
 
+PROJETO_PADRAO_NOME = "Nao categorizado"
+PROJETO_PADRAO_SLUG = "nao-categorizado"
 
 _COLUNAS_ORIGEM_TRECHOS = {
     "pagina": "INTEGER",
@@ -22,6 +24,7 @@ _COLUNAS_ORIGEM_TRECHOS = {
 }
 
 _COLUNAS_PROCESSAMENTO_DOCUMENTOS = {
+    "projeto_id": "INTEGER",
     "hash_conteudo": "VARCHAR(64)",
     "status_processamento": "VARCHAR(30) NOT NULL DEFAULT 'recebido'",
     "mensagem_erro_processamento": "TEXT",
@@ -48,7 +51,51 @@ def _garantir_colunas_origem_trechos() -> None:
 
 def _garantir_colunas_processamento_documentos() -> None:
     _garantir_colunas("documentos", _COLUNAS_PROCESSAMENTO_DOCUMENTOS)
+    _garantir_projeto_padrao_documentos()
     _retropreencher_status_processamento_documentos()
+
+
+def _garantir_projeto_padrao_documentos() -> None:
+    with engine.begin() as conexao:
+        inspetor = inspect(conexao)
+        if not inspetor.has_table("projetos"):
+            return
+
+        conexao.execute(
+            text(
+                """
+                INSERT INTO projetos (nome, slug)
+                SELECT :nome, :slug
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM projetos WHERE slug = :slug
+                )
+                """
+            ),
+            {"nome": PROJETO_PADRAO_NOME, "slug": PROJETO_PADRAO_SLUG},
+        )
+
+        if not inspetor.has_table("documentos"):
+            return
+
+        colunas_documentos = {coluna["name"] for coluna in inspetor.get_columns("documentos")}
+        if "projeto_id" not in colunas_documentos:
+            return
+
+        projeto_padrao_id = conexao.execute(
+            text("SELECT id FROM projetos WHERE slug = :slug"),
+            {"slug": PROJETO_PADRAO_SLUG},
+        ).scalar_one()
+
+        conexao.execute(
+            text(
+                """
+                UPDATE documentos
+                SET projeto_id = :projeto_id
+                WHERE projeto_id IS NULL
+                """
+            ),
+            {"projeto_id": projeto_padrao_id},
+        )
 
 
 def _retropreencher_status_processamento_documentos() -> None:
@@ -145,7 +192,8 @@ def _garantir_colunas(nome_tabela: str, colunas_necessarias: dict[str, str]) -> 
             if nome_coluna in colunas_existentes:
                 continue
             tipo_coluna_compativel = _ajustar_tipo_coluna_para_dialeto(
-                conexao.engine.dialect.name, tipo_coluna
+                conexao.engine.dialect.name,
+                tipo_coluna,
             )
             conexao.execute(
                 text(f"ALTER TABLE {nome_tabela} ADD COLUMN {nome_coluna} {tipo_coluna_compativel}")
@@ -165,5 +213,8 @@ def inicializar_banco() -> None:
         Base.metadata.create_all(bind=engine)
         _garantir_colunas_origem_trechos()
         _garantir_colunas_processamento_documentos()
-    except (SQLAlchemyError, OSError, UnicodeError) as erro:
-        logger.warning("Inicialização do banco indisponível no momento. A aplicação seguirá ativa. detalhe=%s", erro)
+    except SQLAlchemyError as erro:
+        logger.warning(
+            "Inicializacao do banco indisponivel no momento. A aplicacao seguira ativa. detalhe=%s",
+            erro,
+        )
